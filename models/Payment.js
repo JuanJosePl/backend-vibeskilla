@@ -63,4 +63,5 @@ paymentSchema.index({ user: 1 });
 paymentSchema.index({ gatewayPaymentId: 1 });
 paymentSchema.index({ status: 1 });
 
-module.exports = mongoose.model('Payment', orderSchema);
+// ✅ CORRECCIÓN: Cambiar orderSchema por paymentSchema
+module.exports = mongoose.model('Payment', paymentSchema);

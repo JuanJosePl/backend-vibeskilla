@@ -12,6 +12,7 @@ const app = express();
 app.use(cors({
   origin: function (origin, callback) {
     const allowedOrigins = [
+      'http://localhost:5173',
       'https://backend-vibeskilla.onrender.com',
       'http://localhost:3000',
       'https://vibeskilla-frontend.vercel.app'

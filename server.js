@@ -8,27 +8,47 @@ connectDB();
 
 const app = express();
 
-// Middlewares
+// Middlewares para producción
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:3000',
+  origin: [
+    'https://backend-vibeskilla.onrender.com',
+    'http://localhost:3000',
+    'https://tu-frontend.vercel.app'
+  ],
   credentials: true
 }));
-app.use(express.json());
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 
 // Rutas
 app.use('/api/auth', require('./routes/authRoutes'));
 
-// Ruta de prueba
+// Ruta de prueba optimizada
 app.get('/', (req, res) => {
   res.json({ 
-    message: '🚀 API de Ecommerce VibesKilla funcionando',
+    message: '🚀 API de Ecommerce VibesKilla - Render',
     version: '1.0.0',
-    features: [
-      '✅ Registro de usuarios con encriptación',
-      '✅ Login con JWT',
-      '✅ Middleware de autenticación',
-      '✅ MongoDB Atlas conectado'
-    ]
+    environment: process.env.NODE_ENV,
+    timestamp: new Date().toISOString(),
+    endpoints: {
+      auth: {
+        register: 'POST /api/auth/register',
+        login: 'POST /api/auth/login',
+        profile: 'GET /api/auth/profile'
+      }
+    }
+  });
+});
+
+// Health check para Render
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'OK',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    environment: process.env.NODE_ENV
   });
 });
 
@@ -36,27 +56,52 @@ app.get('/', (req, res) => {
 app.use('*', (req, res) => {
   res.status(404).json({
     success: false,
-    message: `Ruta no encontrada: ${req.originalUrl}`
+    message: `Ruta no encontrada: ${req.originalUrl}`,
+    availableEndpoints: [
+      'GET /',
+      'GET /health',
+      'POST /api/auth/register',
+      'POST /api/auth/login',
+      'GET /api/auth/profile'
+    ]
   });
 });
 
 // Manejo de errores global
 app.use((error, req, res, next) => {
   console.error('Error:', error);
+  
+  if (error.name === 'ValidationError') {
+    return res.status(400).json({
+      success: false,
+      message: 'Error de validación',
+      errors: Object.values(error.errors).map(e => e.message)
+    });
+  }
+  
+  if (error.code === 11000) {
+    return res.status(400).json({
+      success: false,
+      message: 'El email ya está registrado'
+    });
+  }
+
   res.status(500).json({
     success: false,
-    message: 'Error interno del servidor'
+    message: process.env.NODE_ENV === 'production' 
+      ? 'Error interno del servidor' 
+      : error.message
   });
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 10000;
 
-app.listen(PORT, () => {
+app.listen(PORT, '0.0.0.0', () => {
   console.log('='.repeat(60));
-  console.log('🚀 VIBESKILLA BACKEND - EJECUTÁNDOSE CORRECTAMENTE');
+  console.log('🚀 VIBESKILLA BACKEND - EJECUTÁNDOSE EN RENDER');
+  console.log('📍 URL:', `https://backend-vibeskilla.onrender.com`);
   console.log('📍 Puerto:', PORT);
-  console.log('📍 MongoDB: Conectado ✓');
-  console.log('📍 JWT: Configurado ✓');
-  console.log('📍 Auth: Completo ✓');
+  console.log('📍 Ambiente:', process.env.NODE_ENV);
+  console.log('📍 MongoDB:', 'Conectado ✓');
   console.log('='.repeat(60));
 });

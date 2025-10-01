@@ -1,12 +1,5 @@
 const User = require('../models/User');
-const jwt = require('jsonwebtoken');
-
-// Generar token JWT
-const generateToken = (id) => {
-  return jwt.sign({ id }, process.env.JWT_SECRET, {
-    expiresIn: '30d'
-  });
-};
+const { generateToken } = require('../config/jwt');
 
 // @desc    Registrar nuevo usuario
 // @route   POST /api/auth/register
@@ -20,7 +13,7 @@ const register = async (req, res) => {
     if (userExists) {
       return res.status(400).json({
         success: false,
-        message: 'El usuario ya existe con este email'
+        message: 'Ya existe un usuario con este email'
       });
     }
 
@@ -35,24 +28,31 @@ const register = async (req, res) => {
       }
     });
 
-    if (user) {
-      res.status(201).json({
-        success: true,
-        message: 'Usuario registrado exitosamente',
-        token: generateToken(user._id),
-        user: {
-          id: user._id,
-          email: user.email,
-          profile: user.profile,
-          role: user.role
-        }
+    // Actualizar último login
+    user.lastLogin = new Date();
+    await user.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Usuario registrado exitosamente',
+      token: generateToken(user._id),
+      user: user
+    });
+
+  } catch (error) {
+    console.error('Error en registro:', error);
+    
+    if (error.code === 11000) {
+      return res.status(400).json({
+        success: false,
+        message: 'El email ya está registrado'
       });
     }
-  } catch (error) {
+
     res.status(500).json({
       success: false,
       message: 'Error en el servidor',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -64,8 +64,16 @@ const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    // Verificar email y contraseña
-    const user = await User.findOne({ email });
+    // Validar campos
+    if (!email || !password) {
+      return res.status(400).json({
+        success: false,
+        message: 'Email y contraseña son requeridos'
+      });
+    }
+
+    // Buscar usuario y incluir password para comparar
+    const user = await User.findOne({ email }).select('+password');
     
     if (user && (await user.comparePassword(password))) {
       if (!user.isActive) {
@@ -83,12 +91,7 @@ const login = async (req, res) => {
         success: true,
         message: 'Login exitoso',
         token: generateToken(user._id),
-        user: {
-          id: user._id,
-          email: user.email,
-          profile: user.profile,
-          role: user.role
-        }
+        user: user
       });
     } else {
       res.status(401).json({
@@ -97,10 +100,11 @@ const login = async (req, res) => {
       });
     }
   } catch (error) {
+    console.error('Error en login:', error);
     res.status(500).json({
       success: false,
       message: 'Error en el servidor',
-      error: error.message
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
@@ -122,8 +126,41 @@ const getProfile = async (req, res) => {
   }
 };
 
+// @desc    Actualizar perfil del usuario
+// @route   PUT /api/auth/profile
+// @access  Private
+const updateProfile = async (req, res) => {
+  try {
+    const { firstName, lastName, phone } = req.body;
+    
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      {
+        $set: {
+          'profile.firstName': firstName,
+          'profile.lastName': lastName,
+          'profile.phone': phone
+        }
+      },
+      { new: true, runValidators: true }
+    );
+
+    res.json({
+      success: true,
+      message: 'Perfil actualizado exitosamente',
+      user: user
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: 'Error al actualizar perfil'
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
-  getProfile
+  getProfile,
+  updateProfile
 };

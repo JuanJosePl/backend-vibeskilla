@@ -43,17 +43,18 @@ const userSchema = new mongoose.Schema({
   emailVerified: {
     type: Boolean,
     default: false
-  }
+  },
+  lastLogin: Date
 }, {
-  timestamps: true // Crea createdAt y updatedAt automáticamente
+  timestamps: true
 });
 
-// Encriptar contraseña antes de guardar
+// 🔐 Encriptar contraseña antes de guardar
 userSchema.pre('save', async function(next) {
   if (!this.isModified('password')) return next();
   
   try {
-    const salt = await bcrypt.genSalt(10);
+    const salt = await bcrypt.genSalt(12);
     this.password = await bcrypt.hash(this.password, salt);
     next();
   } catch (error) {
@@ -61,9 +62,16 @@ userSchema.pre('save', async function(next) {
   }
 });
 
-// Método para comparar contraseñas
+// 🔐 Método para comparar contraseñas
 userSchema.methods.comparePassword = async function(candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
+};
+
+// 🚫 Quitar password de las respuestas JSON
+userSchema.methods.toJSON = function() {
+  const user = this.toObject();
+  delete user.password;
+  return user;
 };
 
 module.exports = mongoose.model('User', userSchema);

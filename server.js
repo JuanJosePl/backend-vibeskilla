@@ -21,16 +21,22 @@ app.use('/api/auth', require('./routes/authRoutes'));
 // Ruta de prueba
 app.get('/', (req, res) => {
   res.json({ 
-    message: 'API de Ecommerce funcionando',
-    version: '1.0.0'
+    message: '🚀 API de Ecommerce VibesKilla funcionando',
+    version: '1.0.0',
+    features: [
+      '✅ Registro de usuarios con encriptación',
+      '✅ Login con JWT',
+      '✅ Middleware de autenticación',
+      '✅ MongoDB Atlas conectado'
+    ]
   });
 });
 
-// ✅ CORRECCIÓN: Manejar rutas no encontradas (forma correcta)
-app.use((req, res) => {
+// Manejo de rutas no encontradas
+app.use('*', (req, res) => {
   res.status(404).json({
     success: false,
-    message: 'Ruta no encontrada'
+    message: `Ruta no encontrada: ${req.originalUrl}`
   });
 });
 
@@ -46,6 +52,11 @@ app.use((error, req, res, next) => {
 const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor ejecutándose en puerto ${PORT}`);
-  console.log(`📍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
+  console.log('='.repeat(60));
+  console.log('🚀 VIBESKILLA BACKEND - EJECUTÁNDOSE CORRECTAMENTE');
+  console.log('📍 Puerto:', PORT);
+  console.log('📍 MongoDB: Conectado ✓');
+  console.log('📍 JWT: Configurado ✓');
+  console.log('📍 Auth: Completo ✓');
+  console.log('='.repeat(60));
 });

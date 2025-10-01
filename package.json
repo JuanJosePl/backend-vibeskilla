@@ -1,7 +1,7 @@
 {
   "name": "vibeskilla-backend",
-  "version": "2.0.0",
-  "description": "Backend completo para VibesKilla Ecommerce",
+  "version": "3.0.0",
+  "description": "Backend completo para VibesKilla Ecommerce con MongoDB",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -25,8 +25,10 @@
     "backend",
     "api",
     "mongodb",
-    "express"
+    "express",
+    "jwt",
+    "rest-api"
   ],
-  "author": "Tu Nombre",
-  "license": "ISC"
+  "author": "Juan Jose",
+  "license": "MIT"
 }

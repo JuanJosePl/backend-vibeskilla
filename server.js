@@ -13,7 +13,8 @@ app.use(cors({
   origin: function (origin, callback) {
     const allowedOrigins = [
       'https://backend-vibeskilla.onrender.com',
-      'http://localhost:3000'
+      'http://localhost:3000',
+      'https://vibeskilla-frontend.vercel.app'
     ];
     
     if (!origin) return callback(null, true);
@@ -27,7 +28,7 @@ app.use(cors({
   credentials: true
 }));
 
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Servir archivos estáticos
@@ -37,27 +38,44 @@ app.use('/uploads', express.static('uploads'));
 const authRoutes = require('./routes/authRoutes');
 const productRoutes = require('./routes/productRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
+const cartRoutes = require('./routes/cartRoutes');
+const orderRoutes = require('./routes/orderRoutes');
+const paymentRoutes = require('./routes/paymentRoutes');
 
 // Usar rutas
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
+app.use('/api/cart', cartRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/payments', paymentRoutes);
 
 // Ruta principal
 app.get('/', (req, res) => {
   res.json({ 
     success: true,
-    message: '🚀 API VibesKilla - Funcionando correctamente',
-    version: '2.0.0',
+    message: '🚀 API VibesKilla - Ecommerce Completo',
+    version: '3.0.0',
     environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString(),
     features: [
-      '✅ Sistema de autenticación completo',
-      '✅ Gestión de productos y categorías',
+      '✅ Sistema de autenticación JWT',
+      '✅ Gestión completa de productos y categorías',
       '✅ Sistema de reviews y ratings',
+      '✅ Carrito de compras avanzado',
+      '✅ Sistema de órdenes y pagos',
       '✅ Búsqueda y filtros avanzados',
+      '✅ Cupones y descuentos',
       '✅ API RESTful preparada para producción'
-    ]
+    ],
+    endpoints: {
+      auth: '/api/auth',
+      products: '/api/products',
+      categories: '/api/categories',
+      cart: '/api/cart',
+      orders: '/api/orders',
+      payments: '/api/payments'
+    }
   });
 });
 
@@ -66,9 +84,10 @@ app.get('/health', (req, res) => {
   res.json({
     success: true,
     status: 'OK',
-    service: 'VibesKilla API v2.0',
+    service: 'VibesKilla API v3.0',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
+    memory: process.memoryUsage(),
     environment: process.env.NODE_ENV || 'development'
   });
 });
@@ -89,7 +108,12 @@ app.use((req, res, next) => {
       'GET /api/products/search/:query',
       'GET /api/products/:slug',
       'GET /api/categories',
-      'GET /api/categories/:slug'
+      'GET /api/categories/:slug',
+      'GET /api/cart',
+      'POST /api/cart/items',
+      'POST /api/orders',
+      'GET /api/orders',
+      'POST /api/payments/process'
     ]
   });
 });
@@ -115,9 +139,10 @@ app.use((error, req, res, next) => {
   }
   
   if (error.code === 11000) {
+    const field = Object.keys(error.keyPattern)[0];
     return res.status(400).json({
       success: false,
-      message: 'El recurso ya existe'
+      message: `${field} ya existe`
     });
   }
   
@@ -125,6 +150,13 @@ app.use((error, req, res, next) => {
     return res.status(401).json({
       success: false,
       message: 'Token inválido'
+    });
+  }
+  
+  if (error.name === 'TokenExpiredError') {
+    return res.status(401).json({
+      success: false,
+      message: 'Token expirado'
     });
   }
   
@@ -138,16 +170,21 @@ app.use((error, req, res, next) => {
 const PORT = process.env.PORT || 10000;
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log('='.repeat(60));
-  console.log('🚀 VIBESKILLA API v2.0 - INICIADO CORRECTAMENTE');
+  console.log('='.repeat(70));
+  console.log('🚀 VIBESKILLA API v3.0 - ECOMMERCE COMPLETO');
   console.log(`📍 Puerto: ${PORT}`);
   console.log(`📍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
   console.log(`📍 URL: https://backend-vibeskilla.onrender.com`);
-  console.log('📍 Características:');
+  console.log('📍 Características Implementadas:');
   console.log('   ✅ Sistema de autenticación JWT');
   console.log('   ✅ Gestión completa de productos');
   console.log('   ✅ Sistema de categorías jerárquico');
   console.log('   ✅ Reviews y ratings de productos');
+  console.log('   ✅ Carrito de compras avanzado');
+  console.log('   ✅ Sistema de órdenes completo');
+  console.log('   ✅ Procesamiento de pagos');
+  console.log('   ✅ Cupones y descuentos');
   console.log('   ✅ Búsqueda y filtros avanzados');
-  console.log('='.repeat(60));
+  console.log('   ✅ Upload de imágenes');
+  console.log('='.repeat(70));
 });

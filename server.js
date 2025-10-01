@@ -13,8 +13,8 @@ app.use(cors({
   origin: [
     'https://backend-vibeskilla.onrender.com',
     'http://localhost:3000',
-    'https://tu-frontend.vercel.app'
-  ],
+    process.env.CLIENT_URL
+  ].filter(Boolean),
   credentials: true
 }));
 
@@ -52,11 +52,11 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Manejo de rutas no encontradas
-app.use('*', (req, res) => {
+// ✅ CORRECCIÓN: Manejo de rutas no encontradas (forma correcta)
+app.all('*', (req, res) => {
   res.status(404).json({
     success: false,
-    message: `Ruta no encontrada: ${req.originalUrl}`,
+    message: `Ruta no encontrada: ${req.method} ${req.originalUrl}`,
     availableEndpoints: [
       'GET /',
       'GET /health',

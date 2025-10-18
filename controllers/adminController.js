@@ -177,31 +177,74 @@ const getAdminProducts = async (req, res) => {
 // @access  Private/Admin
 const createAdminProduct = async (req, res) => {
   try {
-    console.log("📥 Recibiendo datos del producto:", req.body);
+    console.log('📥 Recibiendo datos del producto:', req.body);
 
-    const product = await Product.create(req.body);
+    // Limpiar y validar los datos antes de crear el producto
+    const productData = {
+      ...req.body,
+      // Convertir mainCategory vacío a null/undefined
+      mainCategory: req.body.mainCategory && req.body.mainCategory.trim() !== '' 
+        ? req.body.mainCategory 
+        : undefined,
+      // Asegurar que categories sea un array válido
+      categories: Array.isArray(req.body.categories) ? req.body.categories : [],
+      // Convertir números correctamente
+      price: parseFloat(req.body.price) || 0,
+      comparePrice: req.body.comparePrice ? parseFloat(req.body.comparePrice) : undefined,
+      costPrice: req.body.costPrice ? parseFloat(req.body.costPrice) : undefined,
+      stock: parseInt(req.body.stock) || 0,
+      // Asegurar que los arrays de atributos sean válidos
+      attributes: {
+        size: Array.isArray(req.body.attributes?.size) ? req.body.attributes.size : [],
+        color: Array.isArray(req.body.attributes?.color) ? req.body.attributes.color : [],
+        material: Array.isArray(req.body.attributes?.material) ? req.body.attributes.material : []
+      }
+    };
 
-    console.log("✅ Producto creado exitosamente:", product._id);
+    // Validar datos requeridos
+    if (!productData.name || !productData.description || !productData.price) {
+      return res.status(400).json({
+        success: false,
+        message: 'Nombre, descripción y precio son campos requeridos'
+      });
+    }
 
+    console.log('🔄 Datos limpios del producto:', productData);
+
+    const product = await Product.create(productData);
+    
+    console.log('✅ Producto creado exitosamente:', product._id);
+    
     res.status(201).json({
       success: true,
-      message: "Producto creado exitosamente",
-      data: product,
+      message: 'Producto creado exitosamente',
+      data: product
     });
-  } catch (error) {
-    console.error("❌ Error al crear producto:", error);
 
+  } catch (error) {
+    console.error('❌ Error al crear producto:', error);
+    
+    // Manejar errores de validación de Mongoose
+    if (error.name === 'ValidationError') {
+      const errors = Object.values(error.errors).map(err => err.message);
+      return res.status(400).json({
+        success: false,
+        message: 'Error de validación',
+        errors: errors
+      });
+    }
+    
+    // Manejar errores de duplicación
     if (error.code === 11000) {
       return res.status(400).json({
         success: false,
-        message: "El SKU o slug del producto ya existe",
+        message: 'El SKU o slug ya existe'
       });
     }
 
     res.status(500).json({
       success: false,
-      message: "Error al crear producto",
-      error: error.message,
+      message: 'Error interno del servidor al crear producto'
     });
   }
 };

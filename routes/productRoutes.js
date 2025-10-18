@@ -30,7 +30,7 @@ router.put('/reviews/:id', authMiddleware, updateReview);
 router.delete('/reviews/:id', authMiddleware, deleteReview);
 
 // Rutas de administrador
-router.post('/', authMiddleware, requireRole(['admin', 'moderator']), createProduct);
+router.post('/products', authMiddleware, requireRole(['admin', 'moderator']), createProduct);
 router.put('/:id', authMiddleware, requireRole(['admin', 'moderator']), updateProduct);
 router.delete('/:id', authMiddleware, requireRole(['admin']), deleteProduct);
 

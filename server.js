@@ -2,38 +2,93 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/database');
+const path = require('path');
 
 // Conectar a la base de datos
 connectDB();
 
 const app = express();
 
-// Middlewares
+// Configuración de CORS para producción
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'https://vibeskilla-frontend.vercel.app',
+  'https://vibeskilla.vercel.app', // Agrega tu dominio principal de Vercel
+  process.env.CLIENT_URL // Variable de entorno para más flexibilidad
+].filter(Boolean); // Elimina valores undefined
+
 app.use(cors({
   origin: function (origin, callback) {
-    const allowedOrigins = [
-      'http://localhost:5173',
-      'https://backend-vibeskilla.onrender.com',
-      'http://localhost:3000',
-      'https://vibeskilla-frontend.vercel.app'
-    ];
-    
+    // Permitir requests sin origin (como mobile apps o curl)
     if (!origin) return callback(null, true);
     
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    if (allowedOrigins.some(allowedOrigin => 
+      origin === allowedOrigin || 
+      origin.startsWith(allowedOrigin.replace('https://', 'http://'))
+    )) {
       callback(null, true);
     } else {
+      console.log('CORS bloqueado para origen:', origin);
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With']
 }));
 
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
+// Middlewares de seguridad y parsing
+app.use(express.json({ 
+  limit: '10mb',
+  verify: (req, res, buf) => {
+    req.rawBody = buf;
+  }
+}));
+app.use(express.urlencoded({ 
+  extended: true, 
+  limit: '10mb' 
+}));
 
-// Servir archivos estáticos
-app.use('/uploads', express.static('uploads'));
+// Logging de requests (útil para debug en producción)
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.path} - Origin: ${req.headers.origin}`);
+  next();
+});
+
+// Servir archivos estáticos de manera más segura
+app.use('/uploads', express.static(path.join(__dirname, 'uploads'), {
+  maxAge: '1d',
+  setHeaders: (res, path) => {
+    // Headers de seguridad para archivos estáticos
+    res.set('X-Content-Type-Options', 'nosniff');
+  }
+}));
+
+// Health check mejorado
+app.get('/health', async (req, res) => {
+  const healthCheck = {
+    success: true,
+    status: 'OK',
+    service: 'VibesKilla API v3.0',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime(),
+    memory: process.memoryUsage(),
+    environment: process.env.NODE_ENV || 'development',
+    database: 'Connected', // Puedes verificar conexión a DB aquí
+    version: '3.0.0'
+  };
+
+  // Verificar conexión a MongoDB
+  try {
+    const mongoose = require('mongoose');
+    healthCheck.database = mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected';
+  } catch (error) {
+    healthCheck.database = 'Error checking connection';
+  }
+
+  res.status(200).json(healthCheck);
+});
 
 // Importar rutas
 const authRoutes = require('./routes/authRoutes');
@@ -44,7 +99,7 @@ const orderRoutes = require('./routes/orderRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const adminRoutes = require('./routes/adminRoutes');
 
-// Usar rutas
+// Usar rutas con prefix
 app.use('/api/auth', authRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
@@ -53,7 +108,7 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/admin', adminRoutes);
 
-// Ruta principal
+// Ruta principal mejorada
 app.get('/', (req, res) => {
   res.json({ 
     success: true,
@@ -61,6 +116,7 @@ app.get('/', (req, res) => {
     version: '3.0.0',
     environment: process.env.NODE_ENV || 'development',
     timestamp: new Date().toISOString(),
+    docs: 'Consulta /health para estado del sistema',
     features: [
       '✅ Sistema de autenticación JWT',
       '✅ Gestión completa de productos y categorías',
@@ -77,26 +133,14 @@ app.get('/', (req, res) => {
       categories: '/api/categories',
       cart: '/api/cart',
       orders: '/api/orders',
-      payments: '/api/payments'
+      payments: '/api/payments',
+      health: '/health'
     }
   });
 });
 
-// Health check
-app.get('/health', (req, res) => {
-  res.json({
-    success: true,
-    status: 'OK',
-    service: 'VibesKilla API v3.0',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-    environment: process.env.NODE_ENV || 'development'
-  });
-});
-
 // Manejo de rutas no encontradas
-app.use((req, res, next) => {
+app.use('*', (req, res) => {
   res.status(404).json({
     success: false,
     message: `Ruta no encontrada: ${req.method} ${req.originalUrl}`,
@@ -121,17 +165,26 @@ app.use((req, res, next) => {
   });
 });
 
-// Manejo de errores
+// Manejo de errores global
 app.use((error, req, res, next) => {
-  console.error('Error:', error);
+  console.error('Error Global:', {
+    message: error.message,
+    stack: error.stack,
+    url: req.url,
+    method: req.method,
+    origin: req.headers.origin
+  });
   
+  // CORS Errors
   if (error.message === 'Not allowed by CORS') {
     return res.status(403).json({
       success: false,
-      message: 'Origen no permitido por CORS'
+      message: 'Origen no permitido',
+      allowedOrigins: allowedOrigins
     });
   }
   
+  // MongoDB Errors
   if (error.name === 'ValidationError') {
     const errors = Object.values(error.errors).map(err => err.message);
     return res.status(400).json({
@@ -149,6 +202,7 @@ app.use((error, req, res, next) => {
     });
   }
   
+  // JWT Errors
   if (error.name === 'JsonWebTokenError') {
     return res.status(401).json({
       success: false,
@@ -163,21 +217,28 @@ app.use((error, req, res, next) => {
     });
   }
   
-  res.status(500).json({
+  // Default error
+  res.status(error.status || 500).json({
     success: false,
-    message: 'Error interno del servidor',
-    ...(process.env.NODE_ENV === 'development' && { error: error.message })
+    message: error.message || 'Error interno del servidor',
+    ...(process.env.NODE_ENV === 'development' && { 
+      stack: error.stack,
+      details: error 
+    })
   });
 });
 
+// Configuración del puerto
 const PORT = process.env.PORT || 10000;
+const HOST = process.env.HOST || '0.0.0.0';
 
-app.listen(PORT, '0.0.0.0', () => {
+app.listen(PORT, HOST, () => {
   console.log('='.repeat(70));
   console.log('🚀 VIBESKILLA API v3.0 - ECOMMERCE COMPLETO');
   console.log(`📍 Puerto: ${PORT}`);
+  console.log(`📍 Host: ${HOST}`);
   console.log(`📍 Ambiente: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`📍 URL: https://backend-vibeskilla.onrender.com`);
+  console.log(`📍 Frontend URL: ${process.env.CLIENT_URL || 'https://vibeskilla-frontend.vercel.app'}`);
   console.log('📍 Características Implementadas:');
   console.log('   ✅ Sistema de autenticación JWT');
   console.log('   ✅ Gestión completa de productos');
@@ -190,4 +251,15 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log('   ✅ Búsqueda y filtros avanzados');
   console.log('   ✅ Upload de imágenes');
   console.log('='.repeat(70));
+});
+
+// Manejo graceful de shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully');
+  process.exit(0);
 });

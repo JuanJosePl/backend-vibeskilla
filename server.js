@@ -13,8 +13,8 @@ const app = express();
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
-  'https://vibeskilla-frontend.vercel.app',
-  'https://vibeskilla.vercel.app', // Agrega tu dominio principal de Vercel
+  'https://front-vibeskilla-h9haomdkx-juanjosepls-projects.vercel.app/',
+  'https://front-vibeskilla.vercel.app/', // Agrega tu dominio principal de Vercel
   process.env.CLIENT_URL // Variable de entorno para más flexibilidad
 ].filter(Boolean); // Elimina valores undefined
 

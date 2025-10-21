@@ -147,10 +147,94 @@ const deleteCategory = async (req, res) => {
   }
 };
 
+// @desc    Obtener productos relacionados
+// @route   GET /api/products/related/:productId
+// @access  Public
+const getRelatedProducts = async (req, res) => {
+  try {
+    const { productId } = req.params;
+    const { category, limit = 4 } = req.query;
+
+    // Validar que el producto exista
+    const currentProduct = await Product.findById(productId);
+    if (!currentProduct) {
+      return res.status(404).json({
+        success: false,
+        message: 'Producto no encontrado'
+      });
+    }
+
+    // Construir query para productos relacionados
+    const query = {
+      _id: { $ne: productId }, // Excluir el producto actual
+      status: 'active',
+      isPublished: true
+    };
+
+    // Si se proporciona categoría, usarla, sino usar las categorías del producto actual
+    if (category) {
+      query.categories = category;
+    } else if (currentProduct.categories && currentProduct.categories.length > 0) {
+      query.categories = { $in: currentProduct.categories };
+    }
+
+    // Si no hay categorías, buscar por misma marca o productos destacados
+    if (!query.categories) {
+      if (currentProduct.brand) {
+        query.brand = currentProduct.brand;
+      } else {
+        // Fallback a productos destacados
+        query.isFeatured = true;
+      }
+    }
+
+    // Obtener productos relacionados
+    const relatedProducts = await Product.find(query)
+      .select('name price comparePrice images slug shortDescription isFeatured brand stock')
+      .populate('categories', 'name slug')
+      .limit(parseInt(limit))
+      .sort({ 
+        isFeatured: -1, 
+        createdAt: -1,
+        salesCount: -1 
+      });
+
+    // Si no hay suficientes productos relacionados, completar con productos populares
+    if (relatedProducts.length < limit) {
+      const additionalProducts = await Product.find({
+        _id: { $nin: [productId, ...relatedProducts.map(p => p._id)] },
+        status: 'active',
+        isPublished: true
+      })
+      .select('name price comparePrice images slug shortDescription isFeatured brand stock')
+      .populate('categories', 'name slug')
+      .limit(limit - relatedProducts.length)
+      .sort({ salesCount: -1, createdAt: -1 });
+
+      relatedProducts.push(...additionalProducts);
+    }
+
+    res.json({
+      success: true,
+      count: relatedProducts.length,
+      data: relatedProducts
+    });
+
+  } catch (error) {
+    console.error('Error al obtener productos relacionados:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener productos relacionados',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   getCategories,
   getCategoryBySlug,
   createCategory,
   updateCategory,
-  deleteCategory
+  deleteCategory,
+  getRelatedProducts
 };

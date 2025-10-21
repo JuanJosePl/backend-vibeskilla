@@ -7,7 +7,8 @@ const {
   createProduct,
   updateProduct,
   deleteProduct,
-  searchProducts
+  searchProducts,
+  getRelatedProducts
 } = require('../controllers/productController');
 const {
   getProductReviews,
@@ -23,6 +24,10 @@ router.get('/featured', getFeaturedProducts);
 router.get('/search/:query', searchProducts);
 router.get('/:slug', getProductBySlug);
 router.get('/:productId/reviews', getProductReviews);
+
+
+// GET /api/products/related/:productId
+router.get('/related/:productId', getRelatedProducts);
 
 // Rutas protegidas - Reviews
 router.post('/:productId/reviews', authMiddleware, createReview);

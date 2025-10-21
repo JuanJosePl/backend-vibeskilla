@@ -13,7 +13,9 @@ const app = express();
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
-  'https://front-vibeskilla.vercel.app', // ✅ Sin barra al final
+  'https://front-vibeskilla.vercel.app',
+  'https://front-vibeskilla-jcrs.vercel.app',
+  'https://vercel.com/juanjosepls-projects/front-vibeskilla-jcrs/EatdxyWvsYoBjmZtmSQN3S3841th', // ✅ Sin barra al final
   'https://front-vibeskilla-h9haomdkx-juanjosepls-projects.vercel.app', // ✅ Sin barra al final
   'https://front-vibeskilla-git-main-juanjosepls-projects.vercel.app', // ✅ Agregar este también
   process.env.CLIENT_URL

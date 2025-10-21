@@ -17,13 +17,6 @@ router.post('/send', async (req, res) => {
       });
     }
 
-    if (message.length < 10) {
-      return res.status(400).json({
-        success: false,
-        message: 'El mensaje debe tener al menos 10 caracteres'
-      });
-    }
-
     const contactData = {
       name: name.trim(),
       email: email.trim(),
@@ -33,7 +26,7 @@ router.post('/send', async (req, res) => {
       timestamp: new Date().toISOString()
     };
 
-    console.log('📤 Enviando emails...');
+    console.log('📤 Enviando email...');
     const result = await emailService.sendContactEmail(contactData);
 
     res.json({
@@ -46,22 +39,22 @@ router.post('/send', async (req, res) => {
     console.error('❌ Error en contacto:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Error al enviar el mensaje. Por favor, intenta nuevamente.'
+      message: error.message
     });
   }
 });
 
-// GET /api/contact/test - Ruta de prueba
+// GET /api/contact/test - Ruta de prueba mejorada
 router.get('/test', async (req, res) => {
   try {
     console.log('🧪 Probando servicio de email...');
     
     const testData = {
       name: 'Usuario de Prueba',
-      email: 'poloj3614@gmail.com', // Te llegará a tu email
+      email: 'poloj3614@gmail.com',
       phone: '+57 300 000 0000',
-      subject: 'Mensaje de prueba del sistema',
-      message: 'Este es un mensaje de prueba para verificar que el sistema de correos está funcionando correctamente. Si recibes este email, todo está configurado perfectamente! 🎉',
+      subject: 'Prueba del Sistema - ' + new Date().toISOString(),
+      message: 'Esta es una prueba del sistema de correos de KillaVibes.',
       timestamp: new Date().toISOString()
     };
 
@@ -76,9 +69,24 @@ router.get('/test', async (req, res) => {
     console.error('❌ Error en prueba:', error);
     res.status(500).json({
       success: false,
-      message: 'Error en prueba de email: ' + error.message
+      message: 'Error en prueba: ' + error.message,
+      config: {
+        smtpHost: process.env.SMTP_HOST,
+        smtpPort: process.env.SMTP_PORT,
+        smtpUser: process.env.SMTP_USER ? 'Configurado' : 'No configurado'
+      }
     });
   }
+});
+
+// GET /api/contact/config - Ver configuración (sin credenciales)
+router.get('/config', (req, res) => {
+  res.json({
+    smtpHost: process.env.SMTP_HOST,
+    smtpPort: process.env.SMTP_PORT,
+    smtpUser: process.env.SMTP_USER ? 'Configurado' : 'No configurado',
+    smtpFrom: process.env.SMTP_FROM
+  });
 });
 
 module.exports = router;

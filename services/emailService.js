@@ -1,112 +1,217 @@
-const nodemailer = require("nodemailer");
+const sgMail = require('@sendgrid/mail');
 
 class EmailService {
   constructor() {
-    // Configuración más robusta para Gmail
-    this.transporter = nodemailer.createTransport({
-      service: "gmail", // Usar servicio en lugar de host/port
-      auth: {
-        user: process.env.SMTP_USER,
-        pass: process.env.SMTP_PASS,
-      },
-      // Configuraciones para evitar timeout
-      connectionTimeout: 30000,
-      greetingTimeout: 30000,
-      socketTimeout: 30000,
-      // Logs para debugging
-      logger: true,
-      debug: true,
-    });
+    if (process.env.SENDGRID_API_KEY) {
+      sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+      console.log('✅ SendGrid configurado correctamente');
+    } else {
+      console.log('❌ ERROR: SENDGRID_API_KEY no encontrada');
+      throw new Error('SendGrid no configurado');
+    }
   }
 
   async sendContactEmail(contactData) {
     try {
       const { name, email, phone, subject, message } = contactData;
 
-      console.log("🔧 Iniciando envío de email...");
-      console.log("📧 Desde:", process.env.SMTP_USER);
-      console.log("📨 Para admin: poloj3614@gmail.com");
+      console.log('🔄 Iniciando envío de email...');
+      console.log('📨 Destino: poloj3614@gmail.com');
+      console.log('👤 Remitente:', email);
 
-      // Email simple para el administrador
-      const mailOptions = {
-        from: `"KillaVibes Contacto" <${process.env.SMTP_USER}>`,
-        to: "poloj3614@gmail.com", // Solo enviar al admin por ahora
-        subject: `📧 Contacto: ${subject}`,
+      const msg = {
+        to: 'poloj3614@gmail.com', // Tú recibes los mensajes
+        from: {
+          email: 'poloj3614@gmail.com',
+          name: 'KillaVibes Contacto'
+        },
+        subject: `📧 ${subject}`,
         html: this.getEmailTemplate(contactData),
         text: this.getTextTemplate(contactData),
+        replyTo: email // Para responder directo al cliente
       };
 
-      console.log("📤 Enviando email...");
-      const result = await this.transporter.sendMail(mailOptions);
-      console.log("✅ Email enviado exitosamente:", result.messageId);
-
+      console.log('📤 Enviando via SendGrid...');
+      const response = await sgMail.send(msg);
+      
+      console.log('✅ Email enviado EXITOSAMENTE');
+      console.log('🔧 Response status:', response[0].statusCode);
+      
       return {
         success: true,
-        message: "Email enviado exitosamente",
-        messageId: result.messageId,
+        message: 'Email enviado exitosamente',
+        statusCode: response[0].statusCode
       };
+
     } catch (error) {
-      console.error("❌ Error detallado en EmailService:");
-      console.error("🔧 Código:", error.code);
-      console.error("📝 Mensaje:", error.message);
-
-      let errorMessage = "Error al enviar el email: ";
-
-      if (error.code === "EAUTH") {
-        errorMessage +=
-          "Error de autenticación con Gmail. Verifica las credenciales.";
-      } else if (error.code === "ECONNECTION" || error.code === "ETIMEDOUT") {
-        errorMessage +=
-          "No se pudo conectar a Gmail. El servicio puede estar bloqueado.";
-      } else {
-        errorMessage += error.message;
+      console.error('❌ ERROR SendGrid:');
+      console.error('🔧 Código:', error.code);
+      console.error('📝 Mensaje:', error.message);
+      
+      if (error.response) {
+        console.error('🔍 Response body:', error.response.body);
       }
-
-      throw new Error(errorMessage);
+      
+      throw new Error(`Error al enviar email: ${error.message}`);
     }
   }
 
   getEmailTemplate(contactData) {
     const { name, email, phone, subject, message } = contactData;
-
+    
     return `
-      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #333;">🛍️ KillaVibes - Nuevo Mensaje</h2>
-        <div style="background: #f9f9f9; padding: 20px; border-radius: 8px;">
-          <p><strong>👤 Nombre:</strong> ${name}</p>
-          <p><strong>📧 Email:</strong> ${email}</p>
-          <p><strong>📞 Teléfono:</strong> ${phone || "No proporcionado"}</p>
-          <p><strong>🎯 Asunto:</strong> ${subject}</p>
-          <p><strong>💬 Mensaje:</strong></p>
-          <div style="background: white; padding: 15px; border-radius: 5px; margin-top: 10px;">
-            ${message.replace(/\n/g, "<br>")}
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <style>
+          body { 
+            font-family: 'Arial', sans-serif; 
+            line-height: 1.6; 
+            color: #333; 
+            margin: 0; 
+            padding: 0; 
+            background-color: #f4f4f4;
+          }
+          .container { 
+            max-width: 600px; 
+            margin: 20px auto; 
+            background: white; 
+            border-radius: 10px; 
+            overflow: hidden;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+          }
+          .header { 
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+            color: white; 
+            padding: 30px 20px; 
+            text-align: center; 
+          }
+          .header h1 { 
+            margin: 0; 
+            font-size: 24px; 
+          }
+          .content { 
+            padding: 30px; 
+          }
+          .field { 
+            margin-bottom: 20px; 
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+          }
+          .label { 
+            font-weight: bold; 
+            color: #667eea; 
+            display: block;
+            margin-bottom: 5px;
+          }
+          .message-content {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            border: 1px solid #e9ecef;
+            margin-top: 10px;
+          }
+          .footer { 
+            text-align: center; 
+            margin-top: 30px; 
+            padding: 20px; 
+            background: #f8f9fa; 
+            border-radius: 5px; 
+            font-size: 14px;
+            color: #6c757d;
+          }
+          .urgent { 
+            background: #fff3cd; 
+            border-left-color: #ffc107; 
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>🛍️ KillaVibes</h1>
+            <p>Nuevo Mensaje de Contacto</p>
+          </div>
+          <div class="content">
+            <div class="urgent">
+              <strong>📬 Nuevo mensaje recibido</strong>
+              <p>Un cliente se ha contactado a través del formulario web.</p>
+            </div>
+            
+            <div class="field">
+              <span class="label">👤 Nombre:</span>
+              ${name}
+            </div>
+            
+            <div class="field">
+              <span class="label">📧 Email:</span>
+              <a href="mailto:${email}">${email}</a>
+            </div>
+            
+            <div class="field">
+              <span class="label">📞 Teléfono:</span>
+              ${phone || 'No proporcionado'}
+            </div>
+            
+            <div class="field">
+              <span class="label">🎯 Asunto:</span>
+              ${subject}
+            </div>
+            
+            <div class="field">
+              <span class="label">💬 Mensaje:</span>
+              <div class="message-content">
+                ${message.replace(/\n/g, '<br>')}
+              </div>
+            </div>
+            
+            <div class="field">
+              <span class="label">🕐 Fecha:</span>
+              ${new Date().toLocaleString('es-CO', { 
+                year: 'numeric', 
+                month: 'long', 
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </div>
+          </div>
+          <div class="footer">
+            <p>📩 Enviado desde el formulario de contacto de KillaVibes</p>
+            <p>📍 Barranquilla, Atlántico - Colombia</p>
           </div>
         </div>
-        <p style="color: #666; font-size: 12px; margin-top: 20px;">
-          Enviado desde el formulario de contacto de KillaVibes<br>
-          ${new Date().toLocaleString("es-CO")}
-        </p>
-      </div>
+      </body>
+      </html>
     `;
   }
 
   getTextTemplate(contactData) {
     const { name, email, phone, subject, message } = contactData;
-
+    
     return `
-KILLAVIBES - NUEVO MENSAJE
+KILLAVIBES - NUEVO MENSAJE DE CONTACTO
 
+📬 INFORMACIÓN DEL CLIENTE:
 Nombre: ${name}
 Email: ${email}
-Teléfono: ${phone || "No proporcionado"}
+Teléfono: ${phone || 'No proporcionado'}
 Asunto: ${subject}
 
-Mensaje:
+💬 MENSAJE:
 ${message}
 
+🕐 FECHA: ${new Date().toLocaleString('es-CO')}
+📍 Barranquilla, Atlántico - Colombia
+
 ---
-Enviado desde formulario de contacto
-${new Date().toLocaleString("es-CO")}
+Enviado desde el formulario de contacto de KillaVibes
     `;
   }
 }

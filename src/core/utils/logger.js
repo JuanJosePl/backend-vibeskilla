@@ -55,7 +55,7 @@ const logger = winston.createLogger({
 });
 
 // En desarrollo, también log a consola con colores
-if (process.env.NODE_ENV !== 'production') {
+if (process.env.NODE_ENV !== 'development') {
   logger.add(
     new winston.transports.Console({
       format: winston.format.combine(

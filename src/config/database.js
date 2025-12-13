@@ -22,7 +22,7 @@ const connectDB = async () => {
     }
 
     const conn = await mongoose.connect(process.env.MONGODB_URI, {
-      maxPoolSize: process.env.NODE_ENV === 'production' ? 20 : 10,
+      maxPoolSize: process.env.NODE_ENV === 'development' ? 20 : 10,
       serverSelectionTimeoutMS: 5000,
       socketTimeoutMS: 45000,
       retryWrites: true,

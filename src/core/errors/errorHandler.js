@@ -111,7 +111,7 @@ const errorHandler = (err, req, res, next) => {
   let { statusCode, message } = err;
 
   // En producción, no exponer detalles de errores no operacionales
-  if (!err.isOperational && process.env.NODE_ENV === "production") {
+  if (!err.isOperational && process.env.NODE_ENV === "development") {
     statusCode = 500;
     message = "Error interno del servidor";
   }
@@ -126,7 +126,7 @@ const errorHandler = (err, req, res, next) => {
   };
 
   // En desarrollo, incluir stack trace para debugging
-  if (process.env.NODE_ENV === "production") {
+  if (process.env.NODE_ENV === "development") {
     response.stack = err.stack;
     console.error("[ERROR]", {
       statusCode,
@@ -138,7 +138,7 @@ const errorHandler = (err, req, res, next) => {
   }
 
   // En producción, log mínimo
-  if (process.env.NODE_ENV === "production" && !err.isOperational) {
+  if (process.env.NODE_ENV === "development" && !err.isOperational) {
     console.error("[CRITICAL ERROR]", {
       statusCode,
       message,

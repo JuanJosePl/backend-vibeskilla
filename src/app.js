@@ -109,7 +109,7 @@ const paymentLimiter = rateLimit({
 // MIDDLEWARES GLOBALES
 // ============================================
 
-if (process.env.NODE_ENV === 'development') {
+if (process.env.NODE_ENV === 'production') {
   app.use(morgan('dev'));
 } else {
   app.use(morgan('combined'));
@@ -132,7 +132,7 @@ app.get('/health', (req, res) => {
     version: '4.0.0',
     timestamp: new Date().toISOString(),
     uptime: process.uptime(),
-    environment: process.env.NODE_ENV || 'development',
+    environment: process.env.NODE_ENV || 'production',
     database: 'connected'
   });
 });
@@ -143,7 +143,7 @@ app.get('/', (req, res) => {
     message: 'VibesKilla E-commerce API',
     version: '4.0.0',
     architecture: 'Clean Architecture + DDD + Service Layer Pattern',
-    environment: process.env.NODE_ENV || 'development',
+    environment: process.env.NODE_ENV || 'production',
     documentation: '/api/docs',
     modules: {
       auth: '/api/auth',

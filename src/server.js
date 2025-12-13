@@ -19,7 +19,7 @@ const mongoose = require('mongoose');
  */
 
 const PORT = process.env.PORT || 5000;
-const NODE_ENV = process.env.NODE_ENV || 'development';
+const NODE_ENV = process.env.NODE_ENV || 'production';
 
 /**
  * Validar variables de entorno críticas

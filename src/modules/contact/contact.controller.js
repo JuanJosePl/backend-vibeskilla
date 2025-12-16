@@ -9,6 +9,7 @@ const catchAsync = require('../../core/utils/catchAsync');
  * 
  * Responsabilidades:
  * - Recibir mensajes de contacto
+ * - Extraer metadata (IP, User Agent)
  * - Delegar procesamiento al service
  * - Formatear respuestas HTTP
  * 
@@ -24,7 +25,13 @@ const catchAsync = require('../../core/utils/catchAsync');
  * @access  Public
  */
 const sendContactMessage = catchAsync(async (req, res) => {
-  const result = await contactService.sendContactMessage(req.body);
+  // ✅ Extraer metadata del request
+  const metadata = {
+    ipAddress: req.ip || req.connection.remoteAddress,
+    userAgent: req.get('user-agent')
+  };
+
+  const result = await contactService.sendContactMessage(req.body, metadata);
   
   res.status(200).json({
     success: true,

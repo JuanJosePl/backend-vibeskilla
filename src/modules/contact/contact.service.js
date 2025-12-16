@@ -1,6 +1,7 @@
 const Contact = require('./contact.model');
 const emailService = require('../../services/email.service');
 const ApiError = require('../../core/errors/ApiError');
+const logger = require('../../core/utils/logger');
 
 /**
  * @class ContactService
@@ -19,13 +20,15 @@ class ContactService {
    * Enviar mensaje de contacto
    * 
    * @param {Object} contactData - Datos del formulario
+   * @param {Object} metadata - IP y User Agent
    * @returns {Promise<Object>}
    */
-  async sendContactMessage(contactData) {
+  async sendContactMessage(contactData, metadata = {}) {
     try {
       const { name, email, phone, subject, message } = contactData;
+      const { ipAddress, userAgent } = metadata;
 
-      // Validación anti-spam: máximo 3 mensajes por email en 1 hora
+      // ✅ Validación anti-spam: máximo 3 mensajes por email en 1 hora
       const oneHourAgo = new Date();
       oneHourAgo.setHours(oneHourAgo.getHours() - 1);
       
@@ -35,22 +38,27 @@ class ContactService {
       });
 
       if (recentMessagesCount >= 3) {
-        // ✅ MEJORADO: Usar badRequest en lugar de tooManyRequests (que no existe)
+        logger.warn(`Anti-spam activado para email: ${email} (IP: ${ipAddress})`);
         throw ApiError.badRequest(
           'Has enviado demasiados mensajes. Intenta nuevamente en 1 hora.'
         );
       }
 
-      // Guardar mensaje en base de datos
+      // ✅ Guardar mensaje en base de datos con metadata
       const contact = await Contact.create({
         name: name.trim(),
         email: email.toLowerCase().trim(),
         phone: phone?.trim(),
         subject: subject.trim(),
         message: message.trim(),
-        status: 'new'
+        status: 'new',
+        ipAddress,
+        userAgent
       });
 
+      logger.info(`Nuevo mensaje de contacto recibido: ${contact._id} (${email})`);
+
+      // ✅ Enviar notificación por email (no bloquear si falla)
       try {
         await emailService.sendContactNotification({
           name,
@@ -60,8 +68,9 @@ class ContactService {
           message,
           contactId: contact._id
         });
+        logger.info(`Email de notificación enviado para contacto ${contact._id}`);
       } catch (emailError) {
-        console.error('Error al enviar email de contacto:', emailError);
+        logger.error('Error al enviar email de contacto:', emailError);
         // No fallar si el email falla, el mensaje ya está guardado
       }
 
@@ -73,7 +82,7 @@ class ContactService {
       
     } catch (error) {
       if (error instanceof ApiError) throw error;
-      console.error('Error en sendContactMessage:', error);
+      logger.error('Error en sendContactMessage:', error);
       throw ApiError.internal('Error al procesar el mensaje de contacto');
     }
   }
@@ -120,6 +129,8 @@ class ContactService {
         Contact.countDocuments(query)
       ]);
 
+      logger.info(`Admin consultó ${messages.length} mensajes de contacto`);
+
       return {
         messages,
         pagination: {
@@ -131,7 +142,7 @@ class ContactService {
       };
       
     } catch (error) {
-      console.error('Error en getContactMessages:', error);
+      logger.error('Error en getContactMessages:', error);
       throw ApiError.internal('Error al obtener mensajes de contacto');
     }
   }
@@ -156,10 +167,12 @@ class ContactService {
       if (!contact) {
         throw ApiError.notFound('Mensaje de contacto no encontrado');
       }
+
+      logger.info(`Mensaje ${contactId} marcado como leído`);
       
     } catch (error) {
       if (error instanceof ApiError) throw error;
-      console.error('Error en markAsRead:', error);
+      logger.error('Error en markAsRead:', error);
       throw ApiError.internal('Error al marcar mensaje como leído');
     }
   }
@@ -179,24 +192,33 @@ class ContactService {
         throw ApiError.notFound('Mensaje de contacto no encontrado');
       }
 
-      // ❌ CORREGIDO: Enviar email de respuesta con método correcto
-      await emailService.sendContactReply({
-        to: contact.email,
-        name: contact.name,
-        originalSubject: contact.subject,
-        reply
-      });
+      // ✅ Enviar email de respuesta al usuario
+      try {
+        await emailService.sendContactReply({
+          to: contact.email,
+          name: contact.name,
+          originalSubject: contact.subject,
+          originalMessage: contact.message,
+          reply
+        });
+        logger.info(`Respuesta enviada al contacto ${contactId} (${contact.email})`);
+      } catch (emailError) {
+        logger.error('Error al enviar respuesta por email:', emailError);
+        throw ApiError.internal('Error al enviar la respuesta por email');
+      }
 
-      // Actualizar estado
+      // ✅ Actualizar estado del mensaje
       await Contact.findByIdAndUpdate(contactId, {
         status: 'replied',
         repliedAt: new Date(),
         reply
       });
+
+      logger.info(`Mensaje ${contactId} respondido exitosamente`);
       
     } catch (error) {
       if (error instanceof ApiError) throw error;
-      console.error('Error en replyToMessage:', error);
+      logger.error('Error en replyToMessage:', error);
       throw ApiError.internal('Error al responder mensaje');
     }
   }
@@ -214,10 +236,12 @@ class ContactService {
       if (!contact) {
         throw ApiError.notFound('Mensaje de contacto no encontrado');
       }
+
+      logger.warn(`Mensaje ${contactId} eliminado por admin (email: ${contact.email})`);
       
     } catch (error) {
       if (error instanceof ApiError) throw error;
-      console.error('Error en deleteContactMessage:', error);
+      logger.error('Error en deleteContactMessage:', error);
       throw ApiError.internal('Error al eliminar mensaje');
     }
   }

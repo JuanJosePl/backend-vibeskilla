@@ -72,6 +72,15 @@ const limiter = rateLimit({
   skip: (req) => req.path === '/health' || req.path === '/'
 });
 
+const contactLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5, // Solo 5 mensajes cada 15 minutos
+  message: {
+    success: false,
+    message: 'Demasiados mensajes enviados. Intenta de nuevo en 15 minutos'
+  }
+});
+
 app.use('/api/', limiter);
 
 // Rate limiter para autenticación (más restrictivo)
@@ -279,7 +288,7 @@ app.use('/api/products', productRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/search', searchRoutes);
-app.use('/api/contact', contactRoutes);
+app.use('/api/contact', contactLimiter , contactRoutes);
 
 // Rutas protegidas (requieren autenticación)
 app.use('/api/cart', cartRoutes);

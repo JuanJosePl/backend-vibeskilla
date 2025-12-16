@@ -29,7 +29,8 @@
     "multer": "^1.4.5-lts.1",
     "nodemailer": "^6.9.8",
     "ua-parser-js": "^2.0.6",
-    "vibeskilla-backend": "file:"
+    "vibeskilla-backend": "file:",
+    "winston": "^3.19.0"
   },
   "devDependencies": {
     "cross-env": "^7.0.3",

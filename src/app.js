@@ -277,6 +277,9 @@ const searchRoutes = require('./modules/search/search.routes');
 const contactRoutes = require('./modules/contact/contact.routes');
 const adminRoutes = require('./modules/admin/admin.routes');
 const activityRoutes = require('./modules/userActivity/activity.routes');
+const analyticsRoutes = require('./modules/analytics/analytics.routes');
+
+
 
 
 // ✅ IMPORTAR CUANDO ESTÉN LISTOS:

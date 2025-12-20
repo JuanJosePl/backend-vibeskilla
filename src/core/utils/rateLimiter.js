@@ -17,7 +17,7 @@ const ApiError = require('../errors/ApiError');
  * 100 requests por 15 minutos por IP
  */
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
+  windowMs: 30 * 1000, // 15 minutos
   max: 100,
   message: {
     success: false,
@@ -35,7 +35,7 @@ const apiLimiter = rateLimit({
  * 5 intentos por 15 minutos por IP
  */
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: 30 * 1000,
   max: 5,
   skipSuccessfulRequests: true, // No contar requests exitosos
   message: {
@@ -131,7 +131,7 @@ const checkoutLimiter = rateLimit({
  */
 const createUserRateLimiter = (options = {}) => {
   const {
-    windowMs = 15 * 60 * 1000,
+    windowMs = 30 * 1000,
     max = 100,
     message = 'Límite de solicitudes alcanzado'
   } = options;

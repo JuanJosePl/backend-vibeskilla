@@ -21,7 +21,7 @@ class EmailService {
     }
     this.isConfigured = true;
     this.fromEmail =
-      process.env.SENDGRID_FROM_EMAIL || "noreply@killavibes.com";
+      process.env.SENDGRID_FROM_EMAIL || "poloj3614@gmail.com";
     this.supportEmail = process.env.SUPPORT_EMAIL || "poloj3614@gmail.com";
   }
 

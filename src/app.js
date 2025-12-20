@@ -61,7 +61,7 @@ app.options('*', cors());
 
 // Rate limiter general (todas las rutas /api)
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutos
+  windowMs: 30 * 1000, // 15 minutos
   max: 60,
   message: {
     success: false,
@@ -73,7 +73,7 @@ const limiter = rateLimit({
 });
 
 const contactLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: 30 * 1000,
   max: 5, // Solo 5 mensajes cada 15 minutos
   message: {
     success: false,
@@ -85,7 +85,7 @@ app.use('/api/', limiter);
 
 // Rate limiter para autenticación (más restrictivo)
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: 30 * 1000,
   max: 20,
   skipSuccessfulRequests: true,
   message: {
@@ -96,7 +96,7 @@ const authLimiter = rateLimit({
 
 // ✅ NUEVO: Rate limiter para orders (crítico en producción)
 const orderLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: 30 * 1000,
   max: 10, // Máximo 10 órdenes cada 15 minutos
   message: {
     success: false,
@@ -106,7 +106,7 @@ const orderLimiter = rateLimit({
 
 // ✅ NUEVO: Rate limiter para payments (crítico)
 const paymentLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: 30 * 1000,
   max: 5, // Máximo 5 intentos de pago cada 15 minutos
   message: {
     success: false,

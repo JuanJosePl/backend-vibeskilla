@@ -1,9 +1,42 @@
-const Joi = require("joi")
+const Joi = require("joi");
 
 /**
- * @description Validaciones profesionales para PRODUCTS
- * 100% consistente con product.model.js
+ * CORRECCIÓN: Agregamos validación específica para productId
  */
+
+// ✅ NUEVA VALIDACIÓN para /related/:productId
+const productIdValidation = {
+  params: Joi.object({
+    productId: Joi.string()
+      .regex(/^[0-9a-fA-F]{24}$/)
+      .required()
+      .messages({
+        "string.pattern.base": "ID de producto inválido",
+        "any.required": "El ID del producto es requerido",
+      }),
+  }),
+  query: Joi.object({
+    limit: Joi.number().integer().min(1).max(20).default(4),
+  }),
+};
+
+// Mantener la validación original para rutas con :id
+const idValidation = {
+  params: Joi.object({
+    id: Joi.string()
+      .regex(/^[0-9a-fA-F]{24}$/)
+      .required()
+      .messages({
+        "string.pattern.base": "ID inválido",
+      }),
+  }),
+};
+
+const slugValidation = {
+  params: Joi.object({
+    slug: Joi.string().required(),
+  }),
+};
 
 const createProductValidation = {
   body: Joi.object({
@@ -44,24 +77,18 @@ const createProductValidation = {
       .when("price", {
         is: Joi.number().required(),
         then: Joi.number().max(Joi.ref("price")).messages({
-          "number.max": "El precio de costo debe ser menor que el precio de venta",
+          "number.max":
+            "El precio de costo debe ser menor que el precio de venta",
         }),
       }),
 
     sku: Joi.string().uppercase().optional(),
-
     stock: Joi.number().integer().min(0).default(0),
-
     lowStockThreshold: Joi.number().integer().min(0).default(5),
-
     trackQuantity: Joi.boolean().default(true),
-
     allowBackorder: Joi.boolean().default(false),
-
     categories: Joi.array().items(Joi.string()).optional(),
-
     mainCategory: Joi.string().allow("", null).optional(),
-
     tags: Joi.array().items(Joi.string().trim().lowercase()).optional(),
 
     images: Joi.array()
@@ -72,7 +99,7 @@ const createProductValidation = {
           title: Joi.string().optional(),
           isPrimary: Joi.boolean().default(false),
           order: Joi.number().optional(),
-        }),
+        })
       )
       .optional(),
 
@@ -106,7 +133,7 @@ const createProductValidation = {
           }),
           images: Joi.array().items(Joi.string().uri()).optional(),
           isActive: Joi.boolean().default(true),
-        }),
+        })
       )
       .optional(),
 
@@ -117,22 +144,22 @@ const createProductValidation = {
       canonicalUrl: Joi.string().uri().optional(),
     }).optional(),
 
-    status: Joi.string().valid("active", "draft", "archived", "discontinued").default("draft"),
-
-    visibility: Joi.string().valid("public", "private", "hidden").default("public"),
-
+    status: Joi.string()
+      .valid("active", "draft", "archived", "discontinued")
+      .default("draft"),
+    visibility: Joi.string()
+      .valid("public", "private", "hidden")
+      .default("public"),
     isFeatured: Joi.boolean().default(false),
-
     isPublished: Joi.boolean().default(false),
-
     requiresShipping: Joi.boolean().default(true),
 
     weight: Joi.object({
       value: Joi.number().positive().optional(),
       unit: Joi.string().default("kg"),
     }).optional(),
-  }).min(3), // Al menos 3 campos obligatorios
-}
+  }).min(3),
+};
 
 const updateProductValidation = {
   params: Joi.object({
@@ -166,28 +193,37 @@ const updateProductValidation = {
           altText: Joi.string().max(200).allow(""),
           isPrimary: Joi.boolean(),
           order: Joi.number(),
-        }),
+        })
       )
       .optional(),
     brand: Joi.string().trim().max(100).optional(),
     attributes: Joi.object().optional(),
     variants: Joi.array().optional(),
     seo: Joi.object().optional(),
-    status: Joi.string().valid("active", "draft", "archived", "discontinued").optional(),
+    status: Joi.string()
+      .valid("active", "draft", "archived", "discontinued")
+      .optional(),
     visibility: Joi.string().valid("public", "private", "hidden").optional(),
     isFeatured: Joi.boolean().optional(),
     isPublished: Joi.boolean().optional(),
     requiresShipping: Joi.boolean().optional(),
     weight: Joi.object().optional(),
   }).min(1),
-}
+};
 
 const getProductsValidation = {
   query: Joi.object({
     page: Joi.number().integer().min(1).default(1),
     limit: Joi.number().integer().min(1).max(100).default(12),
     sort: Joi.string()
-      .valid("createdAt", "price", "name", "salesCount", "views", "rating.average")
+      .valid(
+        "createdAt",
+        "price",
+        "name",
+        "salesCount",
+        "views",
+        "rating.average"
+      )
       .default("createdAt"),
     order: Joi.string().valid("asc", "desc").default("desc"),
     category: Joi.string().optional(),
@@ -195,29 +231,14 @@ const getProductsValidation = {
     minPrice: Joi.number().min(0).optional(),
     maxPrice: Joi.number().min(0).optional(),
     status: Joi.string().valid("active", "draft", "archived").default("active"),
-    visibility: Joi.string().valid("public", "private", "hidden").default("public"),
+    visibility: Joi.string()
+      .valid("public", "private", "hidden")
+      .default("public"),
     featured: Joi.boolean().optional(),
     inStock: Joi.boolean().optional(),
     brand: Joi.string().optional(),
   }),
-}
-
-const idValidation = {
-  params: Joi.object({
-    id: Joi.string()
-      .regex(/^[0-9a-fA-F]{24}$/)
-      .required()
-      .messages({
-        "string.pattern.base": "ID inválido",
-      }),
-  }),
-}
-
-const slugValidation = {
-  params: Joi.object({
-    slug: Joi.string().required(),
-  }),
-}
+};
 
 const checkStockValidation = {
   params: Joi.object({
@@ -228,7 +249,7 @@ const checkStockValidation = {
   body: Joi.object({
     quantity: Joi.number().integer().positive().required(),
   }),
-}
+};
 
 /**
  * Middleware para validar requests
@@ -242,60 +263,63 @@ const validate = (schema) => (req, res, next) => {
       "string.email": "{#label} debe ser un email válido",
       "any.required": "{#label} es requerido",
     },
-  }
+  };
 
   // Validar params
   if (schema.params) {
-    const { error } = schema.params.validate(req.params, validationOptions)
+    const { error } = schema.params.validate(req.params, validationOptions);
     if (error) {
       const errors = error.details.map((detail) => ({
         field: detail.context.key,
         message: detail.message,
-      }))
+      }));
       return res.status(400).json({
         success: false,
         message: "Errores de validación en parámetros",
         errors,
-      })
+      });
     }
   }
 
   // Validar query
   if (schema.query) {
-    const { error, value } = schema.query.validate(req.query, validationOptions)
+    const { error, value } = schema.query.validate(
+      req.query,
+      validationOptions
+    );
     if (error) {
       const errors = error.details.map((detail) => ({
         field: detail.context.key,
         message: detail.message,
-      }))
+      }));
       return res.status(400).json({
         success: false,
         message: "Errores de validación en query",
         errors,
-      })
+      });
     }
-    req.query = value
+    req.query = value;
   }
 
   // Validar body
   if (schema.body) {
-    const { error, value } = schema.body.validate(req.body, validationOptions)
+    const { error, value } = schema.body.validate(req.body, validationOptions);
     if (error) {
       const errors = error.details.map((detail) => ({
         field: detail.context.key,
         message: detail.message,
-      }))
+      }));
       return res.status(400).json({
         success: false,
         message: "Errores de validación",
         errors,
-      })
+      });
     }
-    req.body = value
+    req.body = value;
   }
 
-  next()
-}
+  next();
+};
 
 module.exports = {
   createProductValidation,
@@ -303,6 +327,7 @@ module.exports = {
   getProductsValidation,
   slugValidation,
   idValidation,
+  productIdValidation, // ✅ EXPORTAR NUEVA VALIDACIÓN
   checkStockValidation,
   validate,
-}
+};

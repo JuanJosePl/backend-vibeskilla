@@ -278,6 +278,7 @@ const contactRoutes = require('./modules/contact/contact.routes');
 const adminRoutes = require('./modules/admin/admin.routes');
 const activityRoutes = require('./modules/userActivity/activity.routes');
 
+
 // ✅ IMPORTAR CUANDO ESTÉN LISTOS:
 // const orderRoutes = require('./modules/orders/order.routes');
 // const paymentRoutes = require('./modules/payments/payment.routes');
@@ -301,6 +302,7 @@ app.use('/api/activity', activityRoutes);
 
 // Rutas administrativas
 app.use('/api/admin', adminRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // ============================================
 // MANEJO DE ERRORES
@@ -321,7 +323,8 @@ app.use('*', (req, res) => {
       '/api/search',
       '/api/contact',
       '/api/activity',
-      '/api/admin'
+      '/api/admin',
+      '/api/analytics'
       // '/api/orders', // ✅ Descomentar cuando esté listo
       // '/api/payments' // ✅ Descomentar cuando esté listo
     ]

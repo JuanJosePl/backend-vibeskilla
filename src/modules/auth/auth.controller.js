@@ -123,7 +123,7 @@ const refreshToken = catchAsync(async (req, res) => {
   const { refreshToken } = req.body;
   
   if (!refreshToken) {
-    throw new Error('Refresh token es requerido');
+    throw ApiError.badRequest('Refresh token es requerido');
   }
   
   const result = await authService.refreshAccessToken(refreshToken);

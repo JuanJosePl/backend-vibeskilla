@@ -37,6 +37,7 @@ const ROLE_PERMISSIONS = {
     'read:users', // 👈 Para módulo admin
     'read:activity' // 👈 Para módulo userActivity
   ],
+  [ROLES.ADMIN]: ['*']
 };
 
 /**

@@ -1,0 +1,127 @@
+{
+  "_id": {
+    "$oid": "674b2c3d9f0e2b3c4d5e6f70"
+  },
+  "name": "iPhone 15 Pro Max 256GB",
+  "slug": "iphone-15-pro-max-256gb",
+  "description": "El iPhone 15 Pro Max redefine la innovación con su potente chip A17 Pro, sistema de cámaras profesional con teleobjetivo 5x, diseño en titanio aeroespacial y pantalla Super Retina XDR de 6.7 pulgadas con ProMotion. Incluye Dynamic Island, USB-C y batería de larga duración para un rendimiento excepcional todo el día.",
+  "shortDescription": "iPhone 15 Pro Max con chip A17 Pro, cámara de 48MP y diseño en titanio. Potencia y elegancia en un solo dispositivo.",
+  "price": 1299.99,
+  "comparePrice": 1499.99,
+  "costPrice": 980,
+  "sku": "IPH15PM-256-BLK",
+  "stock": 45,
+  "trackQuantity": true,
+  "allowBackorder": false,
+  "lowStockThreshold": 10,
+  "categories": [
+    {
+      "$oid": "674a1b2c8e9f1a2b3c4d5e6f"
+    }
+  ],
+  "mainCategory": {
+    "$oid": "674a1b2c8e9f1a2b3c4d5e6f"
+  },
+  "tags": [
+    "smartphone",
+    "iphone",
+    "apple",
+    "5g",
+    "premium"
+  ],
+  "images": [
+    {
+      "url": "https://images.unsplash.com/photo-1695048133142-1a20484d2569",
+      "altText": "iPhone 15 Pro Max en color negro titanio vista frontal",
+      "title": "iPhone 15 Pro Max - Vista Frontal",
+      "isPrimary": true,
+      "order": 0
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1695048133158-f89019ee48ca",
+      "altText": "iPhone 15 Pro Max mostrando sistema de cámaras triple",
+      "title": "Sistema de Cámaras Pro",
+      "isPrimary": false,
+      "order": 1
+    },
+    {
+      "url": "https://images.unsplash.com/photo-1695048133364-910f8ff22c4c",
+      "altText": "iPhone 15 Pro Max Dynamic Island activo",
+      "title": "Dynamic Island",
+      "isPrimary": false,
+      "order": 2
+    }
+  ],
+  "brand": "Apple",
+  "attributes": {
+    "size": [
+      "6.7 pulgadas"
+    ],
+    "color": [
+      "Negro Titanio",
+      "Azul Titanio",
+      "Natural Titanio",
+      "Blanco Titanio"
+    ],
+    "material": [
+      "Titanio aeroespacial",
+      "Vidrio texturizado mate"
+    ],
+    "weight": "221g",
+    "dimensions": {
+      "length": 15.99,
+      "width": 7.69,
+      "height": 0.83,
+      "unit": "cm"
+    }
+  },
+  "variants": [],
+  "seo": {
+    "title": "iPhone 15 Pro Max 256GB - Titanio Negro | Tienda Oficial",
+    "description": "Compra el iPhone 15 Pro Max con chip A17 Pro y cámara profesional. Envío gratis, garantía oficial Apple y financiamiento disponible.",
+    "metaKeywords": [
+      "iPhone 15 Pro Max",
+      "A17 Pro",
+      "smartphone apple",
+      "iPhone titanio"
+    ],
+    "canonicalUrl": "https://tutienda.com/products/iphone-15-pro-max-256gb"
+  },
+  "views": 3865,
+  "salesCount": 127,
+  "rating": {
+    "average": 4.8,
+    "count": 89,
+    "distribution": {
+      "_1": 2,
+      "_2": 3,
+      "_3": 8,
+      "_4": 24,
+      "_5": 52
+    }
+  },
+  "status": "active",
+  "visibility": "public",
+  "isFeatured": true,
+  "isPublished": true,
+  "publishedAt": {
+    "$date": "2024-11-20T09:00:00.000Z"
+  },
+  "createdBy": null,
+  "updatedBy": null,
+  "lastViewedAt": {
+    "$date": "2025-12-23T23:03:06.680Z"
+  },
+  "isActive": true,
+  "requiresShipping": true,
+  "weight": {
+    "value": 0.221,
+    "unit": "kg"
+  },
+  "createdAt": {
+    "$date": "2024-11-20T09:00:00.000Z"
+  },
+  "updatedAt": {
+    "$date": "2025-12-23T23:03:06.681Z"
+  }
+}

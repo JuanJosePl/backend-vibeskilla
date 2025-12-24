@@ -177,6 +177,7 @@ const deleteProduct = {
 const createCategory = {
   body: Joi.object({
     name: Joi.string().trim().min(2).max(100).required(),
+    slug: Joi.string().lowercase().optional(),              // ✅ AGREGADO
     description: Joi.string().max(500).optional().allow(''),
     parentCategory: Joi.string().optional(),
     images: Joi.object({
@@ -201,6 +202,7 @@ const updateCategory = {
   }),
   body: Joi.object({
     name: Joi.string().trim().min(2).max(100),
+    slug: Joi.string().lowercase().optional(),              // ✅ AGREGADO
     description: Joi.string().max(500).allow(''),
     parentCategory: Joi.string().allow(null),
     images: Joi.object({

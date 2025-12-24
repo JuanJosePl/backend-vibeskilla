@@ -320,45 +320,59 @@ class ProductService {
     const product = await Product.create(cleanData)
     return await product.populate("categories", "name slug").populate("mainCategory", "name slug")
   }
-
-  /**
-   * Actualizar producto
-   */
-  async updateProduct(productId, updateData, userId) {
-    const product = await Product.findById(productId)
-    if (!product) {
-      throw ApiError.notFound("Producto no encontrado")
-    }
-
-    // Validar precios si se actualizan
-    if (updateData.price && updateData.comparePrice && updateData.comparePrice < updateData.price) {
-      throw ApiError.badRequest("El precio de comparación debe ser mayor que el precio")
-    }
-
-    if (updateData.costPrice && updateData.price && updateData.costPrice > updateData.price) {
-      throw ApiError.badRequest("El precio de costo debe ser menor que el precio de venta")
-    }
-
-    const cleanData = {
-      ...updateData,
-      updatedBy: userId,
-      price: updateData.price ? Number.parseFloat(updateData.price) : undefined,
-      comparePrice: updateData.comparePrice ? Number.parseFloat(updateData.comparePrice) : undefined,
-      costPrice: updateData.costPrice ? Number.parseFloat(updateData.costPrice) : undefined,
-      stock: updateData.stock !== undefined ? Number.parseInt(updateData.stock) : undefined,
-      tags: updateData.tags ? updateData.tags.map((t) => t.toLowerCase().trim()) : undefined,
-    }
-
-    // Remover campos undefined
-    Object.keys(cleanData).forEach((key) => cleanData[key] === undefined && delete cleanData[key])
-
-    const updated = await Product.findByIdAndUpdate(productId, cleanData, { new: true, runValidators: true }).populate(
-      "categories",
-      "name slug",
-    )
-
-    return updated
+/**
+ * Actualizar producto
+ */
+async updateProduct(productId, updateData, userId) {
+  const product = await Product.findById(productId);
+  if (!product) {
+    throw ApiError.notFound("Producto no encontrado");
   }
+
+  // Validar precios si se actualizan
+  if (updateData.price && updateData.comparePrice && updateData.comparePrice < updateData.price) {
+    throw ApiError.badRequest("El precio de comparación debe ser mayor que el precio");
+  }
+
+  if (updateData.costPrice && updateData.price && updateData.costPrice > updateData.price) {
+    throw ApiError.badRequest("El precio de costo debe ser menor que el precio de venta");
+  }
+
+  // ✅ CORRECCIÓN: Procesar datos sin eliminar campos booleanos
+  const cleanData = {
+    ...updateData,
+    updatedBy: userId,
+  };
+
+  // Normalizar números si están presentes
+  if (updateData.price !== undefined) cleanData.price = Number.parseFloat(updateData.price);
+  if (updateData.comparePrice !== undefined) cleanData.comparePrice = Number.parseFloat(updateData.comparePrice);
+  if (updateData.costPrice !== undefined) cleanData.costPrice = Number.parseFloat(updateData.costPrice);
+  if (updateData.stock !== undefined) cleanData.stock = Number.parseInt(updateData.stock);
+  
+  // Normalizar tags
+  if (updateData.tags) {
+    cleanData.tags = updateData.tags.map((t) => t.toLowerCase().trim());
+  }
+
+  // ✅ CRÍTICO: NO eliminar campos booleanos como isPublished, isFeatured, etc.
+  // Solo eliminar campos que sean explícitamente undefined (no enviados)
+  Object.keys(cleanData).forEach((key) => {
+    if (cleanData[key] === undefined) {
+      delete cleanData[key];
+    }
+  });
+
+  const updated = await Product.findByIdAndUpdate(
+    productId, 
+    cleanData, 
+    { new: true, runValidators: true }
+  )
+    .populate("categories", "name slug")
+    .populate("mainCategory", "name slug");
+
+  return updated;
+}
 
   /**
    * Archivar producto (soft delete)

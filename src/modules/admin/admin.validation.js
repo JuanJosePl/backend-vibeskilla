@@ -58,6 +58,8 @@ const getLowStock = {
 const createProduct = {
   body: Joi.object({
     name: Joi.string().trim().min(3).max(150).required(),
+    slug: Joi.string().lowercase().optional(),              // ✅ AGREGADO
+
     sku: Joi.string().trim().min(3).max(20).uppercase().required(),
     description: Joi.string().trim().min(100).max(5000).required(),
     price: Joi.number().min(0).required(),
@@ -90,6 +92,8 @@ const updateProduct = {
   body: Joi.object({
     name: Joi.string().trim().min(3).max(150),
     description: Joi.string().trim().min(10).max(5000),      // ✅ CORREGIDO: min 100 → 10
+    slug: Joi.string().lowercase().optional(),              // ✅ AGREGADO
+
     shortDescription: Joi.string().max(300).allow(""),        // ✅ AGREGADO
     price: Joi.number().min(0),
     comparePrice: Joi.number().min(0),
@@ -384,24 +388,24 @@ module.exports = {
   adminValidation: {
     // Dashboard
     getSalesData,
-    
+
     // Productos
     getProducts,
     getLowStock,
     createProduct,
     updateProduct,
     deleteProduct,
-    
+
     // Categorías
     createCategory,
     updateCategory,
     deleteCategory,
-    
+
     // Órdenes
     getOrders,
     getOrderDetails,
     updateOrderStatus,
-    
+
     // Usuarios
     getUsers,
     getUserDetails,

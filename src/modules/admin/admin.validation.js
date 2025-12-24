@@ -69,8 +69,10 @@ const createProduct = {
     images: Joi.array().items(
       Joi.object({
         url: Joi.string().uri().required(),
-        alt: Joi.string().max(200).optional(),
-        isPrimary: Joi.boolean().default(false)
+        altText: Joi.string().max(200).allow("").optional(),  // ✅ CORREGIDO: alt → altText
+        title: Joi.string().optional(),                       // ✅ AGREGADO
+        isPrimary: Joi.boolean().default(false),
+        order: Joi.number().optional()                        // ✅ AGREGADO
       })
     ).optional(),
     tags: Joi.array().items(Joi.string()).optional(),
@@ -87,23 +89,72 @@ const updateProduct = {
   }),
   body: Joi.object({
     name: Joi.string().trim().min(3).max(150),
-    description: Joi.string().trim().min(100).max(5000),
+    description: Joi.string().trim().min(10).max(5000),      // ✅ CORREGIDO: min 100 → 10
+    shortDescription: Joi.string().max(300).allow(""),        // ✅ AGREGADO
     price: Joi.number().min(0),
     comparePrice: Joi.number().min(0),
     costPrice: Joi.number().min(0),
+    sku: Joi.string().uppercase(),                            // ✅ AGREGADO
     stock: Joi.number().integer().min(0),
+    lowStockThreshold: Joi.number().integer().min(0),         // ✅ AGREGADO
+    trackQuantity: Joi.boolean(),                             // ✅ AGREGADO
+    allowBackorder: Joi.boolean(),                            // ✅ AGREGADO
     categories: Joi.array().items(Joi.string()).min(1),
+    mainCategory: Joi.string().allow("", null),               // ✅ AGREGADO
     brand: Joi.string().trim().max(100),
     images: Joi.array().items(
       Joi.object({
         url: Joi.string().uri().required(),
-        alt: Joi.string().max(200),
-        isPrimary: Joi.boolean()
+        altText: Joi.string().max(200).allow(""),             // ✅ CORREGIDO: alt → altText
+        title: Joi.string().optional(),                       // ✅ AGREGADO
+        isPrimary: Joi.boolean(),
+        order: Joi.number()                                   // ✅ AGREGADO
       })
     ),
     tags: Joi.array().items(Joi.string()),
-    status: Joi.string().valid('active', 'inactive', 'draft'),
-    isFeatured: Joi.boolean()
+    attributes: Joi.object({                                  // ✅ AGREGADO
+      size: Joi.array().items(Joi.string()),
+      color: Joi.array().items(Joi.string()),
+      material: Joi.array().items(Joi.string()),
+      weight: Joi.string(),
+      dimensions: Joi.object({
+        length: Joi.number(),
+        width: Joi.number(),
+        height: Joi.number(),
+        unit: Joi.string().default("cm")
+      })
+    }),
+    variants: Joi.array().items(                              // ✅ AGREGADO
+      Joi.object({
+        sku: Joi.string().required(),
+        name: Joi.string(),
+        price: Joi.number().positive(),
+        comparePrice: Joi.number().positive(),
+        stock: Joi.number().integer().min(0),
+        attributes: Joi.object({
+          size: Joi.string(),
+          color: Joi.string(),
+          material: Joi.string()
+        }),
+        images: Joi.array().items(Joi.string().uri()),
+        isActive: Joi.boolean()
+      })
+    ),
+    seo: Joi.object({                                         // ✅ AGREGADO
+      title: Joi.string().max(60),
+      description: Joi.string().max(160),
+      metaKeywords: Joi.array().items(Joi.string()),
+      canonicalUrl: Joi.string().uri()
+    }),
+    status: Joi.string().valid('active', 'draft', 'archived', 'discontinued'),  // ✅ CORREGIDO: valores alineados con schema
+    visibility: Joi.string().valid('public', 'private', 'hidden'),              // ✅ AGREGADO
+    isFeatured: Joi.boolean(),
+    isPublished: Joi.boolean(),                               // ✅ AGREGADO
+    requiresShipping: Joi.boolean(),                          // ✅ AGREGADO
+    weight: Joi.object({                                      // ✅ AGREGADO
+      value: Joi.number().positive(),
+      unit: Joi.string().default("kg")
+    })
   }).min(1)
 };
 

@@ -81,6 +81,7 @@ const getAdminProducts = catchAsync(async (req, res) => {
   });
 });
 
+
 /**
  * @desc    Crear producto
  * @route   POST /api/admin/products

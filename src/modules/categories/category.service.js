@@ -174,39 +174,51 @@ class CategoryService {
    * @param {string} userId - ID del usuario creador
    * @returns {Promise<Object>} Categoría creada
    */
-  async createCategory(categoryData, userId) {
-    const { name, parentCategory, seo, images, description } = categoryData
+async createCategory(categoryData, userId) {
+  const {
+    name,
+    slug,
+    description,
+    parentCategory,
+    images,
+    seo,
+    featured,
+    isActive,
+    status,
+    order,
+  } = categoryData
 
-    // Validar categoría padre si existe
-    if (parentCategory) {
-      const parent = await Category.findById(parentCategory)
-      if (!parent) {
-        throw ApiError.badRequest("La categoría padre no existe")
-      }
-
-      // Prevenir circularidad
-      if (await this._checkCircularReference(null, parentCategory)) {
-        throw ApiError.badRequest("Referencia circular detectada")
-      }
+  // Validar categoría padre
+  if (parentCategory) {
+    const parent = await Category.findById(parentCategory)
+    if (!parent) {
+      throw ApiError.badRequest("La categoría padre no existe")
     }
-
-    // Verificar nombre único
-    const exists = await Category.findOne({ name })
-    if (exists) {
-      throw ApiError.conflict(`La categoría "${name}" ya existe`)
-    }
-
-    const category = await Category.create({
-      name,
-      description,
-      parentCategory: parentCategory || null,
-      images: images || {},
-      seo: seo || {},
-      createdBy: userId,
-    })
-
-    return category.populate("parentCategory", "name slug")
   }
+
+  // Nombre único
+  const exists = await Category.findOne({ name })
+  if (exists) {
+    throw ApiError.conflict(`La categoría "${name}" ya existe`)
+  }
+
+  const category = await Category.create({
+    name,
+    slug, // ✅ CLAVE
+    description,
+    parentCategory: parentCategory || null,
+    images: images || {},
+    seo: seo || {},
+    featured: featured ?? false,
+    isActive: isActive ?? true,
+    status: status ?? "active",
+    order: order ?? 0,
+    createdBy: userId,
+  })
+
+  return category.populate("parentCategory", "name slug")
+}
+
 
   /**
    * Actualizar categoría
@@ -216,47 +228,67 @@ class CategoryService {
    * @param {string} userId - ID del usuario que actualiza
    * @returns {Promise<Object>} Categoría actualizada
    */
-  async updateCategory(categoryId, updateData, userId) {
-    const { name, parentCategory } = updateData
+  /**
+ * Actualizar categoría
+ */
+async updateCategory(categoryId, updateData, userId) {
+  const { name, slug, parentCategory } = updateData
 
-    // Validar categoría padre si se actualiza
-    if (parentCategory !== undefined) {
-      if (parentCategory && parentCategory.toString() !== categoryId.toString()) {
-        const parent = await Category.findById(parentCategory)
-        if (!parent) {
-          throw ApiError.badRequest("La categoría padre no existe")
-        }
+  // Validar categoría padre si se actualiza
+  if (parentCategory !== undefined) {
+    if (parentCategory && parentCategory.toString() !== categoryId.toString()) {
+      const parent = await Category.findById(parentCategory)
+      if (!parent) {
+        throw ApiError.badRequest("La categoría padre no existe")
+      }
 
-        if (await this._checkCircularReference(categoryId, parentCategory)) {
-          throw ApiError.badRequest("Referencia circular detectada")
-        }
+      if (await this._checkCircularReference(categoryId, parentCategory)) {
+        throw ApiError.badRequest("Referencia circular detectada")
       }
     }
+  }
 
-    // Validar nombre único
-    if (name) {
-      const existing = await Category.findOne({
-        name,
-        _id: { $ne: categoryId },
-      })
-      if (existing) {
-        throw ApiError.conflict(`La categoría "${name}" ya existe`)
-      }
+  // Validar nombre único
+  if (name) {
+    const existing = await Category.findOne({
+      name,
+      _id: { $ne: categoryId },
+    })
+    if (existing) {
+      throw ApiError.conflict(`La categoría "${name}" ya existe`)
     }
+  }
 
-    updateData.updatedBy = userId
+  // Validar slug único si se actualiza
+  if (slug) {
+    const existingSlug = await Category.findOne({
+      slug,
+      _id: { $ne: categoryId },
+    })
+    if (existingSlug) {
+      throw ApiError.conflict(`El slug "${slug}" ya existe`)
+    }
+  }
 
-    const category = await Category.findByIdAndUpdate(categoryId, updateData, {
+  const category = await Category.findByIdAndUpdate(
+    categoryId,
+    {
+      ...updateData,
+      updatedBy: userId,
+    },
+    {
       new: true,
       runValidators: true,
-    }).populate("parentCategory", "name slug")
-
-    if (!category) {
-      throw ApiError.notFound("Categoría no encontrada")
     }
+  ).populate("parentCategory", "name slug")
 
-    return category
+  if (!category) {
+    throw ApiError.notFound("Categoría no encontrada")
   }
+
+  return category
+}
+
 
   /**
    * Eliminar categoría (soft delete)

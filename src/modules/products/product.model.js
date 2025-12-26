@@ -166,18 +166,48 @@ const productSchema = new mongoose.Schema(
       index: true,
     },
 
-    attributes: {
-      size: [String],
-      color: [String],
-      material: [String],
-      weight: String,
-      dimensions: {
-        length: Number,
-        width: Number,
-        height: Number,
-        unit: { type: String, default: "cm" },
-      },
+attributes: {
+  size: [{
+    type: String,
+    trim: true,
+  }],
+
+  color: [{
+    type: String,
+    trim: true,
+  }],
+
+  material: [{
+    type: String,
+    trim: true,
+  }],
+
+  weight: {
+    type: String,
+    default: null,
+  },
+
+  dimensions: {
+    length: {
+      type: Number,
+      default: 0,
     },
+    width: {
+      type: Number,
+      default: 0,
+    },
+    height: {
+      type: Number,
+      default: 0,
+    },
+    unit: {
+      type: String,
+      enum: ["cm", "mm", "in"],
+      default: "cm",
+    },
+  },
+},
+
 
     variants: [
       {

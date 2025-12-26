@@ -295,45 +295,92 @@ class ProductService {
     return products
   }
 
-  /**
+/**
    * Crear producto
    */
-async createProduct(productData, userId) {
-  // Limpiar y validar datos básicos
-  const cleanData = {
-    ...productData, // Mantenemos attributes, weight, seo, etc.
-    price: Number.parseFloat(productData.price) || 0,
-    comparePrice: productData.comparePrice ? Number.parseFloat(productData.comparePrice) : undefined,
-    costPrice: productData.costPrice ? Number.parseFloat(productData.costPrice) : undefined,
-    stock: Number.parseInt(productData.stock) || 0,
-    mainCategory: productData.mainCategory && productData.mainCategory.trim() !== "" ? productData.mainCategory : undefined,
-    categories: Array.isArray(productData.categories) ? productData.categories : [],
-    tags: Array.isArray(productData.tags) ? productData.tags.map((t) => t.toLowerCase().trim()) : [],
-    createdBy: userId,
+  async createProduct(productData, userId) {
+    // ===============================
+    // 1️⃣ Construcción base del producto
+    // ===============================
+    const cleanData = {
+      ...productData,
+
+      price: Number.parseFloat(productData.price) || 0,
+      comparePrice: productData.comparePrice
+        ? Number.parseFloat(productData.comparePrice)
+        : undefined,
+      costPrice: productData.costPrice
+        ? Number.parseFloat(productData.costPrice)
+        : undefined,
+
+      stock: Number.parseInt(productData.stock) || 0,
+
+      mainCategory:
+        productData.mainCategory && productData.mainCategory.trim() !== ""
+          ? productData.mainCategory
+          : undefined,
+
+      categories: Array.isArray(productData.categories)
+        ? productData.categories
+        : [],
+
+      tags: Array.isArray(productData.tags)
+        ? productData.tags.map((t) => t.toLowerCase().trim())
+        : [],
+
+      createdBy: userId,
+    }
+
+    // ===============================
+    // 2️⃣ NORMALIZAR SEO (OBLIGATORIO)
+    // ===============================
+    cleanData.seo = {
+      title: productData.seo?.title || "",
+      description: productData.seo?.description || "",
+      metaKeywords: Array.isArray(productData.seo?.metaKeywords)
+        ? productData.seo.metaKeywords
+        : [],
+      canonicalUrl: productData.seo?.canonicalUrl,
+    }
+
+    // ===============================
+    // 3️⃣ NORMALIZAR ATTRIBUTES (OBLIGATORIO)
+    // ===============================
+    cleanData.attributes = {
+      size: Array.isArray(productData.attributes?.size)
+        ? productData.attributes.size
+        : [],
+      color: Array.isArray(productData.attributes?.color)
+        ? productData.attributes.color
+        : [],
+      material: Array.isArray(productData.attributes?.material)
+        ? productData.attributes.material
+        : [],
+      weight: productData.attributes?.weight ?? null,
+      dimensions: {
+        length: Number(productData.attributes?.dimensions?.length) || 0,
+        width: Number(productData.attributes?.dimensions?.width) || 0,
+        height: Number(productData.attributes?.dimensions?.height) || 0,
+        unit: productData.attributes?.dimensions?.unit || "cm",
+      },
+    }
+
+    // ===============================
+    // 4️⃣ LIMPIEZA SEGURA
+    // ===============================
+    Object.keys(cleanData).forEach((key) => {
+      if (cleanData[key] === undefined) {
+        delete cleanData[key]
+      }
+    })
+
+    // ===============================
+    // 5️⃣ CREAR PRODUCTO
+    // ===============================
+    const product = await Product.create(cleanData)
+
+    return product
   }
-
-  // Validaciones de precios...
-  if (cleanData.comparePrice && cleanData.comparePrice < cleanData.price) {
-    throw ApiError.badRequest("El precio de comparación debe ser mayor que el precio")
-  }
-
-  // ✅ IMPORTANTE: Verificación manual de tipos para objetos anidados
-  // Si el front mandó strings en lugar de números en las dimensiones
-  if (cleanData.attributes?.dimensions) {
-    cleanData.attributes.dimensions.length = Number(cleanData.attributes.dimensions.length) || 0;
-    cleanData.attributes.dimensions.width = Number(cleanData.attributes.dimensions.width) || 0;
-    cleanData.attributes.dimensions.height = Number(cleanData.attributes.dimensions.height) || 0;
-  }
-
-  const product = await Product.create(cleanData)
-  
-  await product.populate([
-    { path: "categories", select: "name slug" },
-    { path: "mainCategory", select: "name slug" }
-  ])
-
-  return product
-}
 
   /**
    * Actualizar producto

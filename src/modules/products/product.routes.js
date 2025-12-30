@@ -8,7 +8,7 @@ const {
   getProductsValidation,
   slugValidation,
   idValidation,
-  productIdValidation, // ✅ IMPORTAR NUEVA VALIDACIÓN
+  productIdValidation,
   checkStockValidation,
 } = require("./product.validation");
 const { authMiddleware, requireRole } = require("../../middleware/auth");
@@ -40,7 +40,6 @@ router.get("/search/:query", productController.searchProducts);
 // ⚠️ DEBE estar ANTES de /:slug
 router.get("/category/:categorySlug", productController.getProductsByCategory);
 
-// ✅ CORRECCIÓN: Usar productIdValidation en lugar de idValidation
 // GET /api/products/related/:productId - Productos relacionados
 router.get(
   "/related/:productId",
@@ -57,7 +56,7 @@ router.post(
 
 /**
  * ==========================================
- * RUTA DINÁMICA /:slug
+ * RUTA DINÁMICA /:slug (PÚBLICO)
  * ==========================================
  * ⚠️ IMPORTANTE: Esta ruta debe estar AL FINAL
  * de todas las rutas públicas para evitar conflictos
@@ -76,8 +75,17 @@ router.get(
  * ==========================================
  */
 
+// ✅ NUEVO - GET /api/products/id/:id - Obtener producto por ID (ADMIN)
+// Esta ruta está protegida y usa /id/ para evitar conflicto con /:slug
+router.get(
+  "/id/:id",
+  authMiddleware,
+  requireRole("admin", "moderator"),
+  validate(idValidation),
+  productController.getProductById
+);
+
 // GET /api/products/admin/low-stock - Productos con stock bajo
-// ⚠️ Esta ruta debe estar ANTES de las rutas con :id para evitar conflictos
 router.get(
   "/admin/low-stock",
   authMiddleware,

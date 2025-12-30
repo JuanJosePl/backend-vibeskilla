@@ -1,8 +1,13 @@
+// src/modules/reviews/review.model.js
+
 const mongoose = require('mongoose');
 
 /**
  * @schema reviewSchema
  * @description Esquema de reseñas/valoraciones de productos
+ * 
+ * ✅ CAMBIO CRÍTICO: isApproved ahora es FALSE por defecto
+ * Las reviews requieren aprobación del admin antes de mostrarse públicamente
  * 
  * SOURCE OF TRUTH para el módulo reviews
  */
@@ -67,9 +72,11 @@ const reviewSchema = new mongoose.Schema({
     default: false // true = usuario compró el producto
   },
   
+  // ✅ CAMBIO CRÍTICO: Ahora es FALSE por defecto (moderación pre-publicación)
   isApproved: {
     type: Boolean,
-    default: true // Moderación post-publicación
+    default: false, // ⬅️ ANTES ERA true, AHORA ES false
+    index: true // Index para queries eficientes de reviews pendientes
   },
   
   // Utilidad (para futuras features de engagement)
@@ -85,13 +92,18 @@ const reviewSchema = new mongoose.Schema({
     min: 0
   },
   
-  // Metadata
+  // Metadata de moderación
   moderatedBy: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User'
   },
   
-  moderatedAt: Date
+  moderatedAt: Date,
+  
+  moderationNote: {
+    type: String,
+    maxlength: 500
+  }
   
 }, {
   timestamps: true,
@@ -109,8 +121,9 @@ reviewSchema.index({ product: 1, user: 1 }, { unique: true });
 // Búsquedas optimizadas
 reviewSchema.index({ product: 1, isApproved: 1, createdAt: -1 });
 reviewSchema.index({ product: 1, rating: 1 });
-reviewSchema.index({ isApproved: 1, createdAt: -1 });
+reviewSchema.index({ isApproved: 1, createdAt: -1 }); // Para admin: reviews pendientes
 reviewSchema.index({ user: 1, createdAt: -1 });
+reviewSchema.index({ reportCount: -1 }); // Para detectar reviews problemáticas
 
 // ============================================
 // VIRTUALS
@@ -135,18 +148,29 @@ reviewSchema.virtual('hasImages').get(function() {
   return this.images && this.images.length > 0;
 });
 
+/**
+ * @virtual isPending
+ * @description Verifica si la review está pendiente de aprobación
+ */
+reviewSchema.virtual('isPending').get(function() {
+  return !this.isApproved;
+});
+
 // ============================================
 // MIDDLEWARE
 // ============================================
 
 /**
  * Post-save: Recalcular rating promedio del producto
+ * SOLO si la review está aprobada
  */
 reviewSchema.post('save', async function(doc) {
-  try {
-    await this.constructor.calculateProductRating(doc.product);
-  } catch (error) {
-    console.error('Error en post-save middleware:', error);
+  if (doc.isApproved) {
+    try {
+      await this.constructor.calculateProductRating(doc.product);
+    } catch (error) {
+      console.error('Error en post-save middleware:', error);
+    }
   }
 });
 
@@ -183,7 +207,7 @@ reviewSchema.post('findOneAndUpdate', async function(doc) {
 /**
  * @static calculateProductRating
  * @description Calcula y actualiza el rating promedio del producto
- * 
+ * SOLO considera reviews aprobadas (isApproved: true)
  * 
  * @param {ObjectId} productId - ID del producto
  * @returns {Promise<void>}
@@ -192,10 +216,9 @@ reviewSchema.statics.calculateProductRating = async function(productId) {
   try {
     const stats = await this.aggregate([
       {
-        // ❌ CORREGIDO: Mongoose hace cast automático
         $match: { 
-          product: productId, // No necesita mongoose.Types.ObjectId()
-          isApproved: true 
+          product: productId,
+          isApproved: true // ⬅️ CRÍTICO: Solo reviews aprobadas
         }
       },
       {
@@ -238,7 +261,7 @@ reviewSchema.statics.calculateProductRating = async function(productId) {
         'rating.distribution._1': stat.oneStar
       });
     } else {
-      // No hay reviews, resetear a 0
+      // No hay reviews aprobadas, resetear a 0
       await Product.findByIdAndUpdate(productId, {
         'rating.average': 0,
         'rating.count': 0,
@@ -251,14 +274,14 @@ reviewSchema.statics.calculateProductRating = async function(productId) {
     }
   } catch (error) {
     console.error('Error calculando rating del producto:', error);
-    throw error; // Re-throw para que el caller lo maneje
+    throw error;
   }
 };
 
 /**
  * @static getProductStats
  * @description Obtiene estadísticas detalladas de reviews de un producto
- * 
+ * SOLO considera reviews aprobadas
  * 
  * @param {ObjectId} productId - ID del producto
  * @returns {Promise<Object>} Estadísticas completas
@@ -267,8 +290,8 @@ reviewSchema.statics.getProductStats = async function(productId) {
   const stats = await this.aggregate([
     {
       $match: { 
-        product: productId, // No necesita mongoose.Types.ObjectId()
-        isApproved: true 
+        product: productId,
+        isApproved: true // ⬅️ CRÍTICO: Solo reviews aprobadas
       }
     },
     {
@@ -326,14 +349,16 @@ reviewSchema.methods.markAsHelpful = function() {
 /**
  * @method report
  * @description Incrementa el contador de reportes
+ * Auto-modera si tiene más de 5 reportes
  * @returns {Promise<Review>}
  */
 reviewSchema.methods.report = function() {
   this.reportCount += 1;
   
   // Auto-moderar si tiene más de 5 reportes
-  if (this.reportCount >= 5) {
+  if (this.reportCount >= 5 && this.isApproved) {
     this.isApproved = false;
+    this.moderationNote = 'Auto-moderada por múltiples reportes';
   }
   
   return this.save();
@@ -343,12 +368,14 @@ reviewSchema.methods.report = function() {
  * @method approve
  * @description Aprueba la review (Admin)
  * @param {ObjectId} moderatorId - ID del moderador
+ * @param {string} note - Nota de moderación (opcional)
  * @returns {Promise<Review>}
  */
-reviewSchema.methods.approve = function(moderatorId) {
+reviewSchema.methods.approve = function(moderatorId, note = '') {
   this.isApproved = true;
   this.moderatedBy = moderatorId;
   this.moderatedAt = new Date();
+  if (note) this.moderationNote = note;
   return this.save();
 };
 
@@ -356,12 +383,14 @@ reviewSchema.methods.approve = function(moderatorId) {
  * @method reject
  * @description Rechaza la review (Admin)
  * @param {ObjectId} moderatorId - ID del moderador
+ * @param {string} reason - Razón del rechazo
  * @returns {Promise<Review>}
  */
-reviewSchema.methods.reject = function(moderatorId) {
+reviewSchema.methods.reject = function(moderatorId, reason = '') {
   this.isApproved = false;
   this.moderatedBy = moderatorId;
   this.moderatedAt = new Date();
+  this.moderationNote = reason || 'Rechazada por el moderador';
   return this.save();
 };
 

@@ -104,6 +104,15 @@ class ApiError extends Error {
     return new ApiError(429, message, true);
   }
 
+
+  /**
+   * @static internal
+   * @description Alias para internalServer (Error 500)
+   */
+  static internal(message = 'Error interno del servidor') {
+    return new ApiError(500, message, false);
+  }
+  
   /**
    * @static internalServer
    * @description Error 500 - Error interno del servidor
@@ -114,5 +123,6 @@ class ApiError extends Error {
     return new ApiError(500, message, false);
   }
 }
+
 
 module.exports = ApiError;

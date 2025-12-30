@@ -184,44 +184,38 @@ class ContactService {
    * @param {string} reply - Respuesta del administrador
    * @returns {Promise<void>}
    */
-  async replyToMessage(contactId, reply) {
+async replyToMessage(contactId, reply) {
+  try {
+    const contact = await Contact.findById(contactId);
+    if (!contact) throw ApiError.notFound('Mensaje no encontrado');
+
+    // Intentar enviar el email
     try {
-      const contact = await Contact.findById(contactId);
-
-      if (!contact) {
-        throw ApiError.notFound('Mensaje de contacto no encontrado');
-      }
-
-      // ✅ Enviar email de respuesta al usuario
-      try {
-        await emailService.sendContactReply({
-          to: contact.email,
-          name: contact.name,
-          originalSubject: contact.subject,
-          originalMessage: contact.message,
-          reply
-        });
-        logger.info(`Respuesta enviada al contacto ${contactId} (${contact.email})`);
-      } catch (emailError) {
-        logger.error('Error al enviar respuesta por email:', emailError);
-        throw ApiError.internal('Error al enviar la respuesta por email');
-      }
-
-      // ✅ Actualizar estado del mensaje
-      await Contact.findByIdAndUpdate(contactId, {
-        status: 'replied',
-        repliedAt: new Date(),
+      await emailService.sendContactReply({
+        to: contact.email,
+        name: contact.name,
+        originalSubject: contact.subject,
+        originalMessage: contact.message,
         reply
       });
-
-      logger.info(`Mensaje ${contactId} respondido exitosamente`);
-      
-    } catch (error) {
-      if (error instanceof ApiError) throw error;
-      logger.error('Error en replyToMessage:', error);
-      throw ApiError.internal('Error al responder mensaje');
+    } catch (emailError) {
+      logger.error('Fallo crítico enviando el email:', emailError);
+      // Opcional: podrías lanzar un error aquí o simplemente loguearlo
+      throw ApiError.internalServer('El servidor de correo no responde. Configura las variables de entorno.');
     }
+
+    // Actualizar DB
+    await Contact.findByIdAndUpdate(contactId, {
+      status: 'replied',
+      repliedAt: new Date(),
+      reply
+    });
+
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw ApiError.internalServer('Error al procesar la respuesta');
   }
+}
 
   /**
    * Eliminar mensaje de contacto (Admin)

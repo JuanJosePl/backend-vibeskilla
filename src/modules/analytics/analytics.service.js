@@ -931,6 +931,58 @@ class AnalyticsService {
 
     return { startDate: start, endDate: end };
   }
+
+ /**
+ * MEJORADO: Productos con análisis avanzado
+ */
+async _getProductsMetrics(startDate, endDate) {
+  const [
+    topSelling,
+    lowStock,
+    mostViewed,
+    bestConversion,
+    viewsVsSales
+  ] = await Promise.all([
+    // Top vendidos - CORREGIDO: usar el método público directamente
+    this.getTopSellingProducts(10, { startDate, endDate }),
+
+    // Bajo stock
+    Product.find({
+      stock: { $lt: 10, $gt: 0 },
+      status: 'active',
+      isPublished: true
+    })
+      .select('name slug sku stock _id')
+      .limit(20)
+      .lean(),
+
+    // Más vistos
+    Product.find({
+      status: 'active',
+      isPublished: true
+    })
+      .select('name slug images views _id')
+      .sort({ views: -1 })
+      .limit(10)
+      .lean(),
+
+    // Mejor conversión
+    this._getBestConversionProducts(startDate, endDate),
+
+    // Comparación vistas vs ventas
+    this._getViewsVsSalesComparison(startDate, endDate)
+  ]);
+
+  return {
+    topSelling,
+    lowStock: lowStock.length,
+    lowStockProducts: lowStock,
+    mostViewed,
+    bestConversion,
+    viewsVsSales
+  };
+}
+
 }
 
 module.exports = new AnalyticsService();

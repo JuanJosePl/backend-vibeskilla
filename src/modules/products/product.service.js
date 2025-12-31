@@ -5,13 +5,6 @@ const ApiError = require("../../core/errors/ApiError")
 /**
  * @class ProductService
  * @description Lógica de negocio para productos
- *
- * Responsabilidades:
- * - CRUD completo de productos
- * - Búsqueda avanzada con filtros
- * - Gestión de stock y variantes
- * - Productos destacados y relacionados
- * - Analytics y métricas
  */
 class ProductService {
   /**
@@ -32,22 +25,19 @@ class ProductService {
       inStock,
       brand,
       visibility = "public",
-      includeInactive = false, // ✅ AGREGADO para admin
+      includeInactive = false,
     } = filters
 
-    // Construir query base
     const query = {
       status,
       visibility,
     }
 
-    // ✅ Solo aplicar filtros de publicación si NO es admin
     if (!includeInactive) {
       query.isPublished = true
       query.isActive = true
     }
 
-    // Filtrar por categoría
     if (category) {
       try {
         const categoryDoc = await Category.findOne({
@@ -64,34 +54,28 @@ class ProductService {
       }
     }
 
-    // Búsqueda full-text
     if (search && search.trim().length > 0) {
       query.$text = { $search: search }
     }
 
-    // Rango de precio
     if (minPrice || maxPrice) {
       query.price = {}
       if (minPrice) query.price.$gte = Number(minPrice)
       if (maxPrice) query.price.$lte = Number(maxPrice)
     }
 
-    // Filtro de marca
     if (brand) {
       query.brand = new RegExp(brand, "i")
     }
 
-    // Filtro featured
     if (featured !== undefined) {
       query.isFeatured = featured === "true" || featured === true
     }
 
-    // Filtro en stock
     if (inStock === "true" || inStock === true) {
       query.$or = [{ stock: { $gt: 0 }, trackQuantity: true }, { allowBackorder: true }]
     }
 
-    // Opciones de sort
     const sortOptions = {}
     const validSortFields = ["createdAt", "price", "name", "salesCount", "views", "rating.average"]
 
@@ -101,11 +85,9 @@ class ProductService {
       sortOptions.createdAt = -1
     }
 
-    // Paginación
     const skip = (page - 1) * limit
-    const limitInt = Math.min(Number.parseInt(limit), 100) // Max 100 items
+    const limitInt = Math.min(Number.parseInt(limit), 100)
 
-    // Ejecutar búsqueda en paralelo
     const [products, total] = await Promise.all([
       Product.find(query)
         .sort(sortOptions)
@@ -148,26 +130,57 @@ class ProductService {
       throw ApiError.notFound("Producto no encontrado")
     }
 
-    // Incrementar vistas sin bloquear
     Product.findByIdAndUpdate(product._id, { $inc: { views: 1 }, lastViewedAt: new Date() }, { new: false }).exec()
 
     return product
   }
 
   /**
-   * Obtener producto por ID
+   * ✅ CORREGIDO - Obtener producto por ID
    */
   async getProductById(productId) {
     const product = await Product.findById(productId)
       .populate("categories", "name slug")
       .populate("mainCategory", "name slug")
       .populate("createdBy", "profile.firstName profile.lastName email")
+      .lean()
 
     if (!product) {
       throw ApiError.notFound("Producto no encontrado")
     }
 
-    return product
+    // ✅ CRÍTICO: Asegurar que TODOS los campos existan con valores por defecto
+    return {
+      ...product,
+      shortDescription: product.shortDescription || "",
+      
+      // ✅ Asegurar estructura completa de attributes
+      attributes: {
+        size: product.attributes?.size || [],
+        color: product.attributes?.color || [],
+        material: product.attributes?.material || [],
+        weight: product.attributes?.weight || null,
+        dimensions: {
+          length: product.attributes?.dimensions?.length || 0,
+          width: product.attributes?.dimensions?.width || 0,
+          height: product.attributes?.dimensions?.height || 0,
+          unit: product.attributes?.dimensions?.unit || "cm",
+        },
+      },
+      
+      // ✅ Asegurar estructura completa de SEO
+      seo: {
+        title: product.seo?.title || "",
+        description: product.seo?.description || "",
+        metaKeywords: product.seo?.metaKeywords || [],
+      },
+      
+      // ✅ Asegurar estructura completa de weight
+      weight: {
+        value: product.weight?.value || undefined,
+        unit: product.weight?.unit || "kg",
+      },
+    }
   }
 
   /**
@@ -201,7 +214,6 @@ class ProductService {
       throw ApiError.notFound("Producto no encontrado")
     }
 
-    // Estrategia de búsqueda: categoría → marca → featured
     const relatedQuery = {
       _id: { $ne: productId },
       status: "active",
@@ -211,7 +223,6 @@ class ProductService {
 
     let relatedProducts = []
 
-    // Opción 1: Por categoría
     if (currentProduct.categories && currentProduct.categories.length > 0) {
       relatedProducts = await Product.find({
         ...relatedQuery,
@@ -224,7 +235,6 @@ class ProductService {
         .lean()
     }
 
-    // Opción 2: Si no hay suficientes, por marca
     if (relatedProducts.length < limit && currentProduct.brand) {
       const additional = await Product.find({
         ...relatedQuery,
@@ -240,7 +250,6 @@ class ProductService {
       relatedProducts = [...relatedProducts, ...additional]
     }
 
-    // Opción 3: Si aún no hay suficientes, productos populares
     if (relatedProducts.length < limit) {
       const additional = await Product.find({
         ...relatedQuery,
@@ -273,7 +282,6 @@ class ProductService {
       $text: { $search: searchQuery },
     }
 
-    // Aplicar filtros adicionales
     if (filters.category) {
       const category = await Category.findOne({ slug: filters.category })
       if (category) query.categories = category._id
@@ -295,78 +303,87 @@ class ProductService {
     return products
   }
 
-/**
-   * Crear producto
+  /**
+   * ✅✅✅ CRÍTICO - CREAR PRODUCTO CORREGIDO
    */
   async createProduct(productData, userId) {
+    console.log("📥 ProductService.createProduct - Datos recibidos:", JSON.stringify(productData, null, 2))
+
     // ===============================
-    // 1️⃣ Construcción base del producto
+    // 1️⃣ CONSTRUIR PAYLOAD LIMPIO
     // ===============================
     const cleanData = {
-      ...productData,
+      // Básico
+      name: productData.name?.trim() || "",
+      slug: productData.slug || "",
+      description: productData.description?.trim() || "",
+      shortDescription: productData.shortDescription?.trim() || "", // ✅ INCLUIDO
 
+      // Precios
       price: Number.parseFloat(productData.price) || 0,
-      comparePrice: productData.comparePrice
-        ? Number.parseFloat(productData.comparePrice)
-        : undefined,
-      costPrice: productData.costPrice
-        ? Number.parseFloat(productData.costPrice)
-        : undefined,
+      comparePrice: productData.comparePrice ? Number.parseFloat(productData.comparePrice) : undefined,
+      costPrice: productData.costPrice ? Number.parseFloat(productData.costPrice) : undefined,
 
+      // Inventario
       stock: Number.parseInt(productData.stock) || 0,
+      sku: productData.sku?.trim() || "",
+      trackQuantity: productData.trackQuantity !== undefined ? productData.trackQuantity : true,
+      allowBackorder: productData.allowBackorder !== undefined ? productData.allowBackorder : false,
+      lowStockThreshold: productData.lowStockThreshold || 5,
 
-      mainCategory:
-        productData.mainCategory && productData.mainCategory.trim() !== ""
-          ? productData.mainCategory
-          : undefined,
+      // Categorías
+      categories: Array.isArray(productData.categories) ? productData.categories : [],
+      mainCategory: productData.mainCategory && productData.mainCategory.trim() !== "" ? productData.mainCategory : undefined,
 
-      categories: Array.isArray(productData.categories)
-        ? productData.categories
-        : [],
+      // Marca y Tags
+      brand: productData.brand?.trim() || "",
+      tags: Array.isArray(productData.tags) ? productData.tags.map((t) => t.toLowerCase().trim()) : [],
 
-      tags: Array.isArray(productData.tags)
-        ? productData.tags.map((t) => t.toLowerCase().trim())
-        : [],
+      // Imágenes
+      images: Array.isArray(productData.images) ? productData.images : [],
 
+      // ✅✅✅ ATRIBUTOS - CRÍTICO
+      attributes: {
+        size: Array.isArray(productData.attributes?.size) ? productData.attributes.size : [],
+        color: Array.isArray(productData.attributes?.color) ? productData.attributes.color : [],
+        material: Array.isArray(productData.attributes?.material) ? productData.attributes.material : [],
+        weight: productData.attributes?.weight || null,
+        dimensions: {
+          length: Number(productData.attributes?.dimensions?.length) || 0,
+          width: Number(productData.attributes?.dimensions?.width) || 0,
+          height: Number(productData.attributes?.dimensions?.height) || 0,
+          unit: productData.attributes?.dimensions?.unit || "cm",
+        },
+      },
+
+      // ✅✅✅ SEO - CRÍTICO
+      seo: {
+        title: productData.seo?.title || "",
+        description: productData.seo?.description || "",
+        metaKeywords: Array.isArray(productData.seo?.metaKeywords) ? productData.seo.metaKeywords : [],
+        canonicalUrl: productData.seo?.canonicalUrl || undefined,
+      },
+
+      // ✅✅✅ WEIGHT SEPARADO - CRÍTICO
+      weight: {
+        value: productData.weight?.value ? Number(productData.weight.value) : undefined,
+        unit: productData.weight?.unit || "kg",
+      },
+
+      // Estados
+      status: productData.status || "active",
+      visibility: productData.visibility || "public",
+      isActive: Boolean(productData.isActive),
+      isFeatured: Boolean(productData.isFeatured),
+      isPublished: Boolean(productData.isPublished),
+      requiresShipping: productData.requiresShipping !== undefined ? productData.requiresShipping : true,
+
+      // Auditoría
       createdBy: userId,
     }
 
     // ===============================
-    // 2️⃣ NORMALIZAR SEO (OBLIGATORIO)
-    // ===============================
-    cleanData.seo = {
-      title: productData.seo?.title || "",
-      description: productData.seo?.description || "",
-      metaKeywords: Array.isArray(productData.seo?.metaKeywords)
-        ? productData.seo.metaKeywords
-        : [],
-      canonicalUrl: productData.seo?.canonicalUrl,
-    }
-
-    // ===============================
-    // 3️⃣ NORMALIZAR ATTRIBUTES (OBLIGATORIO)
-    // ===============================
-    cleanData.attributes = {
-      size: Array.isArray(productData.attributes?.size)
-        ? productData.attributes.size
-        : [],
-      color: Array.isArray(productData.attributes?.color)
-        ? productData.attributes.color
-        : [],
-      material: Array.isArray(productData.attributes?.material)
-        ? productData.attributes.material
-        : [],
-      weight: productData.attributes?.weight ?? null,
-      dimensions: {
-        length: Number(productData.attributes?.dimensions?.length) || 0,
-        width: Number(productData.attributes?.dimensions?.width) || 0,
-        height: Number(productData.attributes?.dimensions?.height) || 0,
-        unit: productData.attributes?.dimensions?.unit || "cm",
-      },
-    }
-
-    // ===============================
-    // 4️⃣ LIMPIEZA SEGURA
+    // 2️⃣ LIMPIAR undefined
     // ===============================
     Object.keys(cleanData).forEach((key) => {
       if (cleanData[key] === undefined) {
@@ -374,16 +391,20 @@ class ProductService {
       }
     })
 
+    console.log("✅ ProductService.createProduct - Datos limpios a guardar:", JSON.stringify(cleanData, null, 2))
+
     // ===============================
-    // 5️⃣ CREAR PRODUCTO
+    // 3️⃣ CREAR PRODUCTO
     // ===============================
     const product = await Product.create(cleanData)
+
+    console.log("💾 Producto creado en DB:", JSON.stringify(product, null, 2))
 
     return product
   }
 
   /**
-   * Actualizar producto
+   * ✅ CORREGIDO - Actualizar producto
    */
   async updateProduct(productId, updateData, userId) {
     const product = await Product.findById(productId)
@@ -391,7 +412,7 @@ class ProductService {
       throw ApiError.notFound("Producto no encontrado")
     }
 
-    // Validar precios si se actualizan
+    // Validar precios
     if (updateData.price && updateData.comparePrice && updateData.comparePrice < updateData.price) {
       throw ApiError.badRequest("El precio de comparación debe ser mayor que el precio")
     }
@@ -400,13 +421,13 @@ class ProductService {
       throw ApiError.badRequest("El precio de costo debe ser menor que el precio de venta")
     }
 
-    // ✅ CORRECCIÓN: Procesar datos sin eliminar campos booleanos
+    // ✅ CONSTRUIR PAYLOAD COMPLETO
     const cleanData = {
       ...updateData,
       updatedBy: userId,
     }
 
-    // Normalizar números si están presentes
+    // Normalizar números
     if (updateData.price !== undefined) cleanData.price = Number.parseFloat(updateData.price)
     if (updateData.comparePrice !== undefined) cleanData.comparePrice = Number.parseFloat(updateData.comparePrice)
     if (updateData.costPrice !== undefined) cleanData.costPrice = Number.parseFloat(updateData.costPrice)
@@ -417,8 +438,7 @@ class ProductService {
       cleanData.tags = updateData.tags.map((t) => t.toLowerCase().trim())
     }
 
-    // ✅ CRÍTICO: NO eliminar campos booleanos como isPublished, isFeatured, etc.
-    // Solo eliminar campos que sean explícitamente undefined (no enviados)
+    // ✅ CRÍTICO: Solo eliminar undefined, NO eliminar false o 0
     Object.keys(cleanData).forEach((key) => {
       if (cleanData[key] === undefined) {
         delete cleanData[key]

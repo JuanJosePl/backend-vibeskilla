@@ -1,6 +1,8 @@
 const Category = require("./category.model")
 const Product = require("../products/product.model")
 const ApiError = require("../../core/errors/ApiError")
+const { CategoryListDTO, CategoryDetailDTO, CategoryTreeNodeDTO } = require('./category.dto');
+
 
 /**
  * @class CategoryService
@@ -82,11 +84,16 @@ class CategoryService {
       )
     }
 
+    // ✅ Usar DTO
+    const dtoCategories = categories.map(
+      (cat) => new CategoryListDTO(cat),
+    )
+
     // Total para paginación
     const total = await Category.countDocuments(query)
 
     return {
-      data: categories,
+      data: dtoCategories,
       pagination: {
         page,
         limit,
@@ -107,14 +114,16 @@ class CategoryService {
       slug,
       status: { $in: ["active", "draft"] },
       isPublished: true,
-    }).populate("parentCategory", "name slug")
+    }).populate("parentCategory", "name slug");
 
     if (!category) {
-      throw ApiError.notFound("Categoría no encontrada")
+      throw ApiError.notFound("Categoría no encontrada");
     }
 
     // Incrementar vistas de forma asíncrona
-    category.incrementViews().catch((err) => console.error("[v0] Error incrementing views:", err))
+    category.incrementViews().catch(err =>
+      console.error("[CategoryService] Error incrementing views:", err)
+    );
 
     // Obtener subcategorías
     const subcategories = await Category.find({
@@ -124,29 +133,26 @@ class CategoryService {
     })
       .select("name slug images.thumbnail order productCount")
       .sort({ order: 1, name: 1 })
-      .lean()
+      .lean();
 
     // Obtener breadcrumb
-    const breadcrumb = await category.getBreadcrumb()
+    const breadcrumb = await category.getBreadcrumb();
 
-    // Contar productos
+    // ✅ Contar productos EN TIEMPO REAL
     const productCount = await Product.countDocuments({
       categories: category._id,
       status: "active",
       isPublished: true,
-    })
+    });
 
-    return {
-      ...category.toObject(),
-      subcategories,
+    // ✅ Usar DTO con datos extras
+    const dto = new CategoryDetailDTO(category, {
+      subcategories: subcategories.map(sub => new CategoryListDTO(sub)),
       breadcrumb,
-      productCount,
-      seo: {
-        title: category.seo?.metaTitle || category.name,
-        description: category.seo?.metaDescription || category.description,
-        keywords: category.seo?.keywords || [],
-      },
-    }
+      productCount
+    });
+
+    return dto;
   }
 
   /**
@@ -174,50 +180,50 @@ class CategoryService {
    * @param {string} userId - ID del usuario creador
    * @returns {Promise<Object>} Categoría creada
    */
-async createCategory(categoryData, userId) {
-  const {
-    name,
-    slug,
-    description,
-    parentCategory,
-    images,
-    seo,
-    featured,
-    isActive,
-    status,
-    order,
-  } = categoryData
+  async createCategory(categoryData, userId) {
+    const {
+      name,
+      description,
+      parentCategory,
+      images,
+      seo,
+      featured,
+      isActive,
+      status,
+      order,
+    } = categoryData;
 
-  // Validar categoría padre
-  if (parentCategory) {
-    const parent = await Category.findById(parentCategory)
-    if (!parent) {
-      throw ApiError.badRequest("La categoría padre no existe")
+    // Validar categoría padre
+    if (parentCategory) {
+      const parent = await Category.findById(parentCategory);
+      if (!parent) {
+        throw ApiError.badRequest("La categoría padre no existe");
+      }
     }
+
+    // Nombre único
+    const exists = await Category.findOne({ name });
+    if (exists) {
+      throw ApiError.conflict(`La categoría "${name}" ya existe`);
+    }
+
+    // ✅ NO enviar slug, dejar que el pre-save lo genere
+    const category = await Category.create({
+      name,
+      // slug: NO ENVIAR, el pre-save lo genera
+      description,
+      parentCategory: parentCategory || null,
+      images: images || {},
+      seo: seo || {},
+      featured: featured ?? false,
+      isActive: isActive ?? true,
+      status: status ?? "active",
+      order: order ?? 0,
+      createdBy: userId,
+    });
+
+    return category.populate("parentCategory", "name slug");
   }
-
-  // Nombre único
-  const exists = await Category.findOne({ name })
-  if (exists) {
-    throw ApiError.conflict(`La categoría "${name}" ya existe`)
-  }
-
-  const category = await Category.create({
-    name,
-    slug, // ✅ CLAVE
-    description,
-    parentCategory: parentCategory || null,
-    images: images || {},
-    seo: seo || {},
-    featured: featured ?? false,
-    isActive: isActive ?? true,
-    status: status ?? "active",
-    order: order ?? 0,
-    createdBy: userId,
-  })
-
-  return category.populate("parentCategory", "name slug")
-}
 
 
   /**
@@ -231,63 +237,63 @@ async createCategory(categoryData, userId) {
   /**
  * Actualizar categoría
  */
-async updateCategory(categoryId, updateData, userId) {
-  const { name, slug, parentCategory } = updateData
+  async updateCategory(categoryId, updateData, userId) {
+    const { name, slug, parentCategory } = updateData
 
-  // Validar categoría padre si se actualiza
-  if (parentCategory !== undefined) {
-    if (parentCategory && parentCategory.toString() !== categoryId.toString()) {
-      const parent = await Category.findById(parentCategory)
-      if (!parent) {
-        throw ApiError.badRequest("La categoría padre no existe")
+    // Validar categoría padre si se actualiza
+    if (parentCategory !== undefined) {
+      if (parentCategory && parentCategory.toString() !== categoryId.toString()) {
+        const parent = await Category.findById(parentCategory)
+        if (!parent) {
+          throw ApiError.badRequest("La categoría padre no existe")
+        }
+
+        if (await this._checkCircularReference(categoryId, parentCategory)) {
+          throw ApiError.badRequest("Referencia circular detectada")
+        }
       }
+    }
 
-      if (await this._checkCircularReference(categoryId, parentCategory)) {
-        throw ApiError.badRequest("Referencia circular detectada")
+    // Validar nombre único
+    if (name) {
+      const existing = await Category.findOne({
+        name,
+        _id: { $ne: categoryId },
+      })
+      if (existing) {
+        throw ApiError.conflict(`La categoría "${name}" ya existe`)
       }
     }
-  }
 
-  // Validar nombre único
-  if (name) {
-    const existing = await Category.findOne({
-      name,
-      _id: { $ne: categoryId },
-    })
-    if (existing) {
-      throw ApiError.conflict(`La categoría "${name}" ya existe`)
+    // Validar slug único si se actualiza
+    if (slug) {
+      const existingSlug = await Category.findOne({
+        slug,
+        _id: { $ne: categoryId },
+      })
+      if (existingSlug) {
+        throw ApiError.conflict(`El slug "${slug}" ya existe`)
+      }
     }
-  }
 
-  // Validar slug único si se actualiza
-  if (slug) {
-    const existingSlug = await Category.findOne({
-      slug,
-      _id: { $ne: categoryId },
-    })
-    if (existingSlug) {
-      throw ApiError.conflict(`El slug "${slug}" ya existe`)
+    const category = await Category.findByIdAndUpdate(
+      categoryId,
+      {
+        ...updateData,
+        updatedBy: userId,
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    ).populate("parentCategory", "name slug")
+
+    if (!category) {
+      throw ApiError.notFound("Categoría no encontrada")
     }
+
+    return category
   }
-
-  const category = await Category.findByIdAndUpdate(
-    categoryId,
-    {
-      ...updateData,
-      updatedBy: userId,
-    },
-    {
-      new: true,
-      runValidators: true,
-    }
-  ).populate("parentCategory", "name slug")
-
-  if (!category) {
-    throw ApiError.notFound("Categoría no encontrada")
-  }
-
-  return category
-}
 
 
   /**
@@ -333,21 +339,23 @@ async updateCategory(categoryId, updateData, userId) {
     })
       .select("name slug parentCategory order productCount images.thumbnail")
       .sort({ order: 1, name: 1 })
-      .lean()
+      .lean();
 
     const buildTree = (parentId = null) => {
       return categories
         .filter((cat) => {
-          const catParentId = cat.parentCategory?.toString()
-          return parentId === null ? !catParentId : catParentId === parentId.toString()
+          const catParentId = cat.parentCategory?.toString();
+          return parentId === null
+            ? !catParentId
+            : catParentId === parentId.toString();
         })
-        .map((cat) => ({
-          ...cat,
-          children: buildTree(cat._id),
-        }))
-    }
+        .map((cat) => {
+          const children = buildTree(cat._id);
+          return new CategoryTreeNodeDTO(cat, children);
+        });
+    };
 
-    return buildTree()
+    return buildTree();
   }
 
   /**

@@ -1,10 +1,10 @@
 const Joi = require("joi");
 
 /**
- * CORRECCIÓN: Agregamos validación específica para productId
+ * Validaciones para el módulo PRODUCTS
  */
 
-// ✅ NUEVA VALIDACIÓN para /related/:productId
+// ✅ VALIDACIÓN para /related/:productId
 const productIdValidation = {
   params: Joi.object({
     productId: Joi.string()
@@ -20,7 +20,7 @@ const productIdValidation = {
   }),
 };
 
-// Mantener la validación original para rutas con :id
+// Validación para rutas con :id
 const idValidation = {
   params: Joi.object({
     id: Joi.string()
@@ -327,7 +327,7 @@ module.exports = {
   getProductsValidation,
   slugValidation,
   idValidation,
-  productIdValidation, // ✅ EXPORTAR NUEVA VALIDACIÓN
+  productIdValidation,
   checkStockValidation,
   validate,
 };

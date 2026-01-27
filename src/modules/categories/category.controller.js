@@ -17,7 +17,7 @@ const getCategories = catchAsync(async (req, res) => {
   const options = {
     featured: featured === "true",
     parentOnly: parentOnly === "true",
-    withProductCount: withProductCount === "true",
+    withProductCount: withProductCount !== "false", // ✅ TRUE por defecto
     sortBy: sortBy || "order",
     page: Math.max(1, Number.parseInt(page)),
     limit: Math.min(100, Number.parseInt(limit)),
@@ -111,6 +111,20 @@ const getCategoryBySlug = catchAsync(async (req, res) => {
 })
 
 /**
+ * ✅ NUEVO - GET /api/categories/:id/seo
+ * @desc Obtener contexto SEO de una categoría (para reutilizar en productos)
+ */
+const getCategorySEOContext = catchAsync(async (req, res) => {
+  const { id } = req.params
+  const seoContext = await categoryService.getCategorySEOContext(id)
+
+  res.json({
+    success: true,
+    data: seoContext,
+  })
+})
+
+/**
  * POST /api/categories
  * @desc Crear nueva categoría (ADMIN)
  */
@@ -169,6 +183,7 @@ module.exports = {
   getPopularCategories,
   searchCategories,
   getCategoryBySlug,
+  getCategorySEOContext,
   createCategory,
   updateCategory,
   deleteCategory,

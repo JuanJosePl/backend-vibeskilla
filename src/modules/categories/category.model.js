@@ -262,6 +262,45 @@ categorySchema.methods.updateProductCount = async function () {
 }
 
 /**
+ * ✅ NUEVO - Obtener keywords SEO acumulados de la jerarquía
+ * @method getSEOKeywords
+ * @description Retorna keywords de esta categoría + padres
+ */
+categorySchema.methods.getSEOKeywords = async function () {
+  const path = await this.getPath()
+  const keywords = new Set()
+
+  path.forEach((cat) => {
+    if (cat.seo && cat.seo.keywords) {
+      cat.seo.keywords.forEach((kw) => keywords.add(kw))
+    }
+  })
+
+  return Array.from(keywords)
+}
+
+/**
+ * ✅ NUEVO - Obtener contexto SEO completo para frontend
+ * @method getSEOContext
+ * @description Retorna objeto SEO optimizado para meta tags
+ */
+categorySchema.methods.getSEOContext = async function () {
+  const breadcrumb = await this.getBreadcrumb()
+  const keywords = await this.getSEOKeywords()
+
+  return {
+    title: this.seo?.metaTitle || this.name,
+    description: this.seo?.metaDescription || this.description || `Productos de ${this.name}`,
+    keywords: keywords,
+    ogTitle: this.seo?.metaTitle || this.name,
+    ogDescription: this.seo?.ogDescription || this.description || `Explora nuestra categoría de ${this.name}`,
+    ogImage: this.seo?.ogImage || this.images?.hero || this.images?.thumbnail || null,
+    canonicalUrl: `/categories/${this.slug}`,
+    breadcrumb: breadcrumb,
+  }
+}
+
+/**
  * @method toJSON
  * @description Formatea respuesta JSON removiendo campos sensibles
  */

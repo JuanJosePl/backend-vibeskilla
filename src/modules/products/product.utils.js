@@ -1,6 +1,6 @@
 /**
  * @module product.utils
- * @description Utilidades específicas del módulo PRODUCTS
+ * @description Utilidades específicas del módulo PRODUCTS + DTOs para frontend
  */
 
 const { slugify } = require("../../core/utils/slugify")
@@ -62,14 +62,213 @@ const validatePriceRange = (minPrice, maxPrice, price) => {
  * Obtener estado de disponibilidad
  */
 const getAvailabilityStatus = (product) => {
-  if (product.stock > product.lowStockThreshold) {
-    return "available"
-  } else if (product.stock > 0 && product.stock <= product.lowStockThreshold) {
-    return "low_stock"
-  } else if (product.stock === 0 && product.allowBackorder) {
-    return "backorder"
-  } else {
-    return "out_of_stock"
+  if (!product.trackQuantity) return "available"
+  if (product.stock > product.lowStockThreshold) return "in_stock"
+  if (product.stock > 0 && product.stock <= product.lowStockThreshold) return "low_stock"
+  if (product.stock === 0 && product.allowBackorder) return "backorder"
+  return "out_of_stock"
+}
+
+/**
+ * ============================================
+ * ✅ NUEVOS DTOs PARA FRONTEND REACT
+ * ============================================
+ */
+
+/**
+ * ✅ ProductCardDTO - Para grids/listados
+ */
+class ProductCardDTO {
+  constructor(product) {
+    this._id = product._id
+    this.name = product.name
+    this.slug = product.slug
+    this.price = product.price
+    this.comparePrice = product.comparePrice || null
+    this.discount = calculateDiscount(product.price, product.comparePrice)
+    this.image = product.primaryImage?.url || product.images?.[0]?.url || null
+    this.brand = product.brand || null
+    this.rating = {
+      average: product.rating?.average || 0,
+      count: product.rating?.count || 0
+    }
+    this.availability = getAvailabilityStatus(product)
+    this.inStock = product.stock > 0 || product.allowBackorder
+    this.isFeatured = product.isFeatured || false
+    this.url = `/products/${product.slug}`
+    
+    // UI helpers
+    this.hasDiscount = this.discount > 0
+    this.hasRating = (product.rating?.count || 0) > 0
+    this.stockBadge = this._getStockBadge(product)
+  }
+
+  _getStockBadge(product) {
+    const status = getAvailabilityStatus(product)
+    const badges = {
+      in_stock: { text: "En stock", color: "green" },
+      low_stock: { text: "Pocas unidades", color: "orange" },
+      backorder: { text: "Bajo pedido", color: "blue" },
+      out_of_stock: { text: "Agotado", color: "red" },
+      available: { text: "Disponible", color: "green" }
+    }
+    return badges[status] || badges.available
+  }
+}
+
+/**
+ * ✅ ProductDetailDTO - Para página de detalle
+ */
+class ProductDetailDTO {
+  constructor(product, extras = {}) {
+    // Datos básicos
+    this._id = product._id
+    this.name = product.name
+    this.slug = product.slug
+    this.description = product.description
+    this.shortDescription = product.shortDescription || ""
+    this.sku = product.sku
+    
+    // Precios
+    this.price = product.price
+    this.comparePrice = product.comparePrice || null
+    this.discount = calculateDiscount(product.price, product.comparePrice)
+    
+    // Imágenes
+    this.images = product.images || []
+    this.primaryImage = product.primaryImage || (product.images?.[0] || null)
+    
+    // Categorías
+    this.categories = product.categories || []
+    this.mainCategory = product.mainCategory || null
+    this.breadcrumb = extras.breadcrumb || []
+    
+    // Inventario
+    this.stock = product.stock
+    this.availability = getAvailabilityStatus(product)
+    this.inStock = product.stock > 0 || product.allowBackorder
+    this.lowStockThreshold = product.lowStockThreshold
+    this.isLowStock = product.stock > 0 && product.stock <= product.lowStockThreshold
+    
+    // Rating
+    this.rating = {
+      average: product.rating?.average || 0,
+      count: product.rating?.count || 0,
+      distribution: product.rating?.distribution || {}
+    }
+    
+    // Atributos
+    this.brand = product.brand || null
+    this.tags = product.tags || []
+    this.attributes = product.attributes || {}
+    this.variants = product.variants || []
+    
+    // SEO
+    this.seo = product.seo || {}
+    if (extras.seoContext) {
+      this.seoContext = extras.seoContext
+    }
+    
+    // Metadata
+    this.isFeatured = product.isFeatured || false
+    this.views = product.views || 0
+    this.salesCount = product.salesCount || 0
+    this.createdAt = product.createdAt
+    this.updatedAt = product.updatedAt
+    this.url = `/products/${product.slug}`
+    
+    // UI helpers
+    this.hasDiscount = this.discount > 0
+    this.hasRating = (product.rating?.count || 0) > 0
+    this.hasVariants = (product.variants?.length || 0) > 0
+    this.stockBadge = this._getStockBadge(product)
+    this.availabilityText = this._getAvailabilityText(product)
+  }
+
+  _getStockBadge(product) {
+    const status = getAvailabilityStatus(product)
+    const badges = {
+      in_stock: { text: "En stock", color: "green", icon: "check" },
+      low_stock: { text: `Solo ${product.stock} disponibles`, color: "orange", icon: "alert" },
+      backorder: { text: "Disponible bajo pedido", color: "blue", icon: "clock" },
+      out_of_stock: { text: "Agotado", color: "red", icon: "x" },
+      available: { text: "Disponible", color: "green", icon: "check" }
+    }
+    return badges[status] || badges.available
+  }
+
+  _getAvailabilityText(product) {
+    if (product.stock > product.lowStockThreshold) {
+      return "Disponible para envío inmediato"
+    }
+    if (product.stock > 0 && product.stock <= product.lowStockThreshold) {
+      return `Solo quedan ${product.stock} unidades`
+    }
+    if (product.stock === 0 && product.allowBackorder) {
+      return "Disponible bajo pedido (3-5 días hábiles)"
+    }
+    return "Agotado temporalmente"
+  }
+}
+
+/**
+ * ✅ ProductListDTO - Para listados con filtros
+ */
+class ProductListDTO {
+  constructor(product) {
+    this._id = product._id
+    this.name = product.name
+    this.slug = product.slug
+    this.shortDescription = product.shortDescription || ""
+    this.price = product.price
+    this.comparePrice = product.comparePrice || null
+    this.discount = calculateDiscount(product.price, product.comparePrice)
+    this.image = product.primaryImage?.url || product.images?.[0]?.url || null
+    this.brand = product.brand || null
+    this.categories = product.categories || []
+    this.rating = {
+      average: product.rating?.average || 0,
+      count: product.rating?.count || 0
+    }
+    this.availability = getAvailabilityStatus(product)
+    this.inStock = product.stock > 0 || product.allowBackorder
+    this.stock = product.stock
+    this.isFeatured = product.isFeatured || false
+    this.url = `/products/${product.slug}`
+    
+    // UI helpers
+    this.hasDiscount = this.discount > 0
+    this.hasRating = (product.rating?.count || 0) > 0
+  }
+}
+
+/**
+ * ✅ ProductSEODTO - Para contexto SEO reutilizable
+ */
+class ProductSEODTO {
+  constructor(seoContext) {
+    this.title = seoContext.title
+    this.description = seoContext.description
+    this.keywords = seoContext.keywords || []
+    this.ogTitle = seoContext.ogTitle
+    this.ogDescription = seoContext.ogDescription
+    this.ogImage = seoContext.ogImage
+    this.canonicalUrl = seoContext.canonicalUrl
+    this.breadcrumb = seoContext.breadcrumb || []
+    this.category = seoContext.category || null
+    
+    // Meta tags listos para usar
+    this.metaTags = {
+      title: this.title,
+      description: this.description,
+      keywords: this.keywords.join(", "),
+      "og:title": this.ogTitle,
+      "og:description": this.ogDescription,
+      "og:image": this.ogImage,
+      "og:url": this.canonicalUrl,
+      canonical: this.canonicalUrl,
+      "og:type": "product"
+    }
   }
 }
 
@@ -77,19 +276,7 @@ const getAvailabilityStatus = (product) => {
  * Formatear producto para respuesta pública
  */
 const formatProductResponse = (product) => {
-  return {
-    id: product._id,
-    name: product.name,
-    slug: product.slug,
-    price: product.price,
-    comparePrice: product.comparePrice,
-    discount: calculateDiscount(product.price, product.comparePrice),
-    image: product.primaryImage,
-    brand: product.brand,
-    rating: product.rating,
-    inStock: product.stock > 0 || product.allowBackorder,
-    availability: getAvailabilityStatus(product),
-  }
+  return new ProductCardDTO(product)
 }
 
 /**
@@ -125,4 +312,9 @@ module.exports = {
   getAvailabilityStatus,
   formatProductResponse,
   formatProductAdmin,
+  // ✅ NUEVOS DTOs
+  ProductCardDTO,
+  ProductDetailDTO,
+  ProductListDTO,
+  ProductSEODTO
 }

@@ -75,7 +75,7 @@ router.get(
  * ==========================================
  */
 
-// ✅ NUEVO - GET /api/products/id/:id - Obtener producto por ID (ADMIN)
+// ✅ GET /api/products/id/:id - Obtener producto por ID (ADMIN)
 // Esta ruta está protegida y usa /id/ para evitar conflicto con /:slug
 router.get(
   "/id/:id",
@@ -83,6 +83,13 @@ router.get(
   requireRole("admin", "moderator"),
   validate(idValidation),
   productController.getProductById
+);
+
+// ✅ NUEVA RUTA - GET /api/products/:id/seo - Obtener contexto SEO
+router.get(
+  "/:id/seo",
+  validate(idValidation),
+  productController.getProductSEOContext
 );
 
 // GET /api/products/admin/low-stock - Productos con stock bajo

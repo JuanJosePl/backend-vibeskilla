@@ -1,25 +1,26 @@
 const Category = require("./category.model")
 const Product = require("../products/product.model")
 const ApiError = require("../../core/errors/ApiError")
-const { CategoryListDTO, CategoryDetailDTO, CategoryTreeNodeDTO } = require('./category.dto');
-
+const { 
+  CategoryListDTO, 
+  CategoryDetailDTO, 
+  CategoryTreeNodeDTO,
+  CategoryCardDTO,
+  CategorySEODTO
+} = require('./category.dto');
 
 /**
  * @class CategoryService
  * @description Servicio profesional de categorías con análisis y cache
  *
- * Responsabilidades:
- * - CRUD de categorías
- * - Validación de jerarquías
- * - Análisis y reporting
- * - SEO y optimización
+ * ✅ MEJORADO para frontend React:
+ * - productCount SIEMPRE presente en respuestas
+ * - SEO context completo y reutilizable
+ * - DTOs optimizados para UI
  */
 class CategoryService {
   /**
-   * Obtener todas las categorías con filtros avanzados
-   *
-   * @param {Object} options - Opciones de filtrado
-   * @returns {Promise<Array>} Categorías
+   * ✅ MEJORADO - Obtener todas las categorías con productCount garantizado
    */
   async getCategories(options = {}) {
     const {
@@ -27,7 +28,7 @@ class CategoryService {
       includeDrafts = false,
       featured = false,
       parentOnly = false,
-      withProductCount = false,
+      withProductCount = true, // ✅ AHORA TRUE POR DEFECTO
       sortBy = "order",
       page = 1,
       limit = 50,
@@ -70,7 +71,7 @@ class CategoryService {
       .populate("parentCategory", "name slug")
       .lean()
 
-    // Agregar conteo de productos si se solicita
+    // ✅ CRÍTICO: Agregar productCount EN TIEMPO REAL si se solicita
     if (withProductCount) {
       categories = await Promise.all(
         categories.map(async (cat) => {
@@ -104,10 +105,7 @@ class CategoryService {
   }
 
   /**
-   * Obtener categoría por slug con análisis
-   *
-   * @param {string} slug - Slug de la categoría
-   * @returns {Promise<Object>} Categoría con análisis
+   * ✅ MEJORADO - Obtener categoría por slug con SEO context completo
    */
   async getCategoryBySlug(slug) {
     const category = await Category.findOne({
@@ -125,18 +123,33 @@ class CategoryService {
       console.error("[CategoryService] Error incrementing views:", err)
     );
 
-    // Obtener subcategorías
+    // Obtener subcategorías con productCount
     const subcategories = await Category.find({
       parentCategory: category._id,
       status: "active",
       isPublished: true,
     })
-      .select("name slug images.thumbnail order productCount")
+      .select("name slug images.thumbnail images.icon order productCount")
       .sort({ order: 1, name: 1 })
       .lean();
 
+    // ✅ MEJORADO: Actualizar productCount de subcategorías en tiempo real
+    const subcategoriesWithCount = await Promise.all(
+      subcategories.map(async (sub) => {
+        const count = await Product.countDocuments({
+          categories: sub._id,
+          status: "active",
+          isPublished: true,
+        });
+        return { ...sub, productCount: count };
+      })
+    );
+
     // Obtener breadcrumb
     const breadcrumb = await category.getBreadcrumb();
+
+    // ✅ NUEVO: Obtener contexto SEO completo
+    const seoContext = await category.getSEOContext();
 
     // ✅ Contar productos EN TIEMPO REAL
     const productCount = await Product.countDocuments({
@@ -147,9 +160,10 @@ class CategoryService {
 
     // ✅ Usar DTO con datos extras
     const dto = new CategoryDetailDTO(category, {
-      subcategories: subcategories.map(sub => new CategoryListDTO(sub)),
+      subcategories: subcategoriesWithCount.map(sub => new CategoryListDTO(sub)),
       breadcrumb,
-      productCount
+      productCount,
+      seoContext: new CategorySEODTO(seoContext)
     });
 
     return dto;
@@ -157,9 +171,6 @@ class CategoryService {
 
   /**
    * Obtener categoría por ID
-   *
-   * @param {string} categoryId - ID de la categoría
-   * @returns {Promise<Object>} Categoría
    */
   async getCategoryById(categoryId) {
     const category = await Category.findById(categoryId)
@@ -175,10 +186,6 @@ class CategoryService {
 
   /**
    * Crear categoría con validaciones
-   *
-   * @param {Object} categoryData - Datos de la categoría
-   * @param {string} userId - ID del usuario creador
-   * @returns {Promise<Object>} Categoría creada
    */
   async createCategory(categoryData, userId) {
     const {
@@ -210,7 +217,6 @@ class CategoryService {
     // ✅ NO enviar slug, dejar que el pre-save lo genere
     const category = await Category.create({
       name,
-      // slug: NO ENVIAR, el pre-save lo genera
       description,
       parentCategory: parentCategory || null,
       images: images || {},
@@ -225,18 +231,9 @@ class CategoryService {
     return category.populate("parentCategory", "name slug");
   }
 
-
   /**
    * Actualizar categoría
-   *
-   * @param {string} categoryId - ID de la categoría
-   * @param {Object} updateData - Datos a actualizar
-   * @param {string} userId - ID del usuario que actualiza
-   * @returns {Promise<Object>} Categoría actualizada
    */
-  /**
- * Actualizar categoría
- */
   async updateCategory(categoryId, updateData, userId) {
     const { name, slug, parentCategory } = updateData
 
@@ -295,12 +292,8 @@ class CategoryService {
     return category
   }
 
-
   /**
    * Eliminar categoría (soft delete)
-   *
-   * @param {string} categoryId - ID de la categoría
-   * @returns {Promise<void>}
    */
   async deleteCategory(categoryId) {
     // Verificar subcategorías
@@ -328,21 +321,31 @@ class CategoryService {
   }
 
   /**
-   * Obtener árbol jerárquico de categorías
-   *
-   * @returns {Promise<Array>} Árbol de categorías
+   * ✅ MEJORADO - Obtener árbol jerárquico con productCount
    */
   async getCategoryTree() {
     const categories = await Category.find({
       status: "active",
       isPublished: true,
     })
-      .select("name slug parentCategory order productCount images.thumbnail")
+      .select("name slug parentCategory order productCount images.thumbnail images.icon")
       .sort({ order: 1, name: 1 })
       .lean();
 
+    // ✅ CRÍTICO: Actualizar productCount en tiempo real
+    const categoriesWithCount = await Promise.all(
+      categories.map(async (cat) => {
+        const count = await Product.countDocuments({
+          categories: cat._id,
+          status: "active",
+          isPublished: true,
+        });
+        return { ...cat, productCount: count };
+      })
+    );
+
     const buildTree = (parentId = null) => {
-      return categories
+      return categoriesWithCount
         .filter((cat) => {
           const catParentId = cat.parentCategory?.toString();
           return parentId === null
@@ -359,35 +362,44 @@ class CategoryService {
   }
 
   /**
-   * Obtener categorías destacadas
-   *
-   * @param {number} limit - Límite de categorías
-   * @returns {Promise<Array>} Categorías destacadas
+   * ✅ MEJORADO - Obtener categorías destacadas con productCount
    */
   async getFeaturedCategories(limit = 6) {
-    return await Category.find({
+    const categories = await Category.find({
       featured: true,
       status: "active",
       isPublished: true,
     })
-      .select("name slug images.thumbnail images.hero productCount")
+      .select("name slug images.thumbnail images.hero images.icon productCount description")
       .limit(limit)
       .sort({ order: 1 })
-      .lean()
+      .lean();
+
+    // ✅ CRÍTICO: Actualizar productCount en tiempo real
+    const categoriesWithCount = await Promise.all(
+      categories.map(async (cat) => {
+        const count = await Product.countDocuments({
+          categories: cat._id,
+          status: "active",
+          isPublished: true,
+        });
+        return { ...cat, productCount: count };
+      })
+    );
+
+    // ✅ NUEVO: Usar CategoryCardDTO para UI
+    return categoriesWithCount.map(cat => new CategoryCardDTO(cat));
   }
 
   /**
    * Buscar categorías por nombre o keywords
-   *
-   * @param {string} query - Término de búsqueda
-   * @returns {Promise<Array>} Categorías encontradas
    */
   async searchCategories(query) {
     if (!query || query.length < 2) {
       throw ApiError.badRequest("El término de búsqueda debe tener al menos 2 caracteres")
     }
 
-    return await Category.find({
+    const categories = await Category.find({
       $or: [
         { name: { $regex: query, $options: "i" } },
         { description: { $regex: query, $options: "i" } },
@@ -395,35 +407,59 @@ class CategoryService {
       ],
       status: "active",
     })
-      .select("name slug images.thumbnail")
+      .select("name slug images.thumbnail productCount")
       .limit(20)
-      .lean()
+      .lean();
+
+    // ✅ Usar DTO
+    return categories.map(cat => new CategoryListDTO(cat));
   }
 
   /**
-   * Obtener categorías más populares
-   *
-   * @param {number} limit - Límite
-   * @returns {Promise<Array>} Categorías por popularidad
+   * ✅ MEJORADO - Obtener categorías más populares con productCount
    */
   async getPopularCategories(limit = 10) {
-    return await Category.find({
+    const categories = await Category.find({
       status: "active",
       isPublished: true,
     })
       .sort({ views: -1, productCount: -1 })
       .limit(limit)
-      .select("name slug views productCount")
-      .lean()
+      .select("name slug views productCount images.thumbnail")
+      .lean();
+
+    // ✅ CRÍTICO: Actualizar productCount en tiempo real
+    const categoriesWithCount = await Promise.all(
+      categories.map(async (cat) => {
+        const count = await Product.countDocuments({
+          categories: cat._id,
+          status: "active",
+          isPublished: true,
+        });
+        return { ...cat, productCount: count };
+      })
+    );
+
+    // ✅ Usar DTO
+    return categoriesWithCount.map(cat => new CategoryListDTO(cat));
+  }
+
+  /**
+   * ✅ NUEVO - Obtener contexto SEO para una categoría (reutilizable)
+   */
+  async getCategorySEOContext(categoryId) {
+    const category = await Category.findById(categoryId);
+    if (!category) {
+      throw ApiError.notFound("Categoría no encontrada");
+    }
+
+    const seoContext = await category.getSEOContext();
+    return new CategorySEODTO(seoContext);
   }
 
   /**
    * Validar referencia circular
-   *
    * @private
-   * @param {string} categoryId - ID de la categoría
-   * @param {string} parentId - ID del padre
-   * @returns {Promise<boolean>}
    */
   async _checkCircularReference(categoryId, parentId) {
     let current = parentId

@@ -133,7 +133,6 @@ const deleteProduct = catchAsync(async (req, res) => {
 const checkStock = catchAsync(async (req, res) => {
   const { productId } = req.params;
   const { quantity } = req.body;
-  // ❌ ELIMINADO: Validaciones manuales - ahora están en product.validation.js
 
   const stock = await productService.checkStock(productId, quantity);
 
@@ -187,6 +186,20 @@ const getTopSellingProducts = catchAsync(async (req, res) => {
   });
 });
 
+/**
+ * ✅ NUEVO - GET /api/products/:id/seo
+ * @desc Obtener contexto SEO de un producto (reutilizable)
+ */
+const getProductSEOContext = catchAsync(async (req, res) => {
+  const { id } = req.params;
+  const seoContext = await productService.getProductSEOContext(id);
+
+  res.json({
+    success: true,
+    data: seoContext,
+  });
+});
+
 module.exports = {
   getProducts,
   getProductBySlug,
@@ -201,4 +214,5 @@ module.exports = {
   getProductsByCategory,
   getLowStockProducts,
   getTopSellingProducts,
+  getProductSEOContext,
 };

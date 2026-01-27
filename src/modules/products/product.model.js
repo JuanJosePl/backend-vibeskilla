@@ -445,6 +445,17 @@ productSchema.virtual("isOutOfStock").get(function () {
   return this.trackQuantity && this.stock === 0 && !this.allowBackorder
 })
 
+/**
+ * ✅ NUEVO - Virtual para disponibilidad
+ */
+productSchema.virtual("availability").get(function () {
+  if (!this.trackQuantity) return "available"
+  if (this.stock > this.lowStockThreshold) return "in_stock"
+  if (this.stock > 0 && this.stock <= this.lowStockThreshold) return "low_stock"
+  if (this.stock === 0 && this.allowBackorder) return "backorder"
+  return "out_of_stock"
+})
+
 // ============================================
 // MIDDLEWARES PRE-SAVE
 // ============================================
@@ -601,6 +612,42 @@ productSchema.methods.updateRating = async function (newRating) {
  */
 productSchema.methods.getVariant = function (variantSku) {
   return this.variants.find((v) => v.sku === variantSku)
+}
+
+/**
+ * ✅ NUEVO - Obtener contexto SEO completo (incluyendo categoría)
+ */
+productSchema.methods.getSEOContext = async function () {
+  const Category = mongoose.model("Category")
+  
+  let categoryContext = null
+  if (this.mainCategory) {
+    const category = await Category.findById(this.mainCategory)
+    if (category) {
+      categoryContext = await category.getSEOContext()
+    }
+  }
+
+  // Combinar keywords del producto + categoría
+  const productKeywords = this.seo?.metaKeywords || []
+  const categoryKeywords = categoryContext?.keywords || []
+  const allKeywords = [...new Set([...productKeywords, ...categoryKeywords])]
+
+  return {
+    title: this.seo?.title || this.name,
+    description: this.seo?.description || this.shortDescription || this.description?.substring(0, 160),
+    keywords: allKeywords,
+    ogTitle: this.seo?.title || this.name,
+    ogDescription: this.seo?.description || this.shortDescription || this.description?.substring(0, 160),
+    ogImage: this.primaryImage?.url || null,
+    canonicalUrl: this.seo?.canonicalUrl || `/products/${this.slug}`,
+    breadcrumb: categoryContext?.breadcrumb || [],
+    category: categoryContext ? {
+      name: categoryContext.title,
+      slug: this.mainCategory.slug,
+      url: categoryContext.canonicalUrl
+    } : null
+  }
 }
 
 /**

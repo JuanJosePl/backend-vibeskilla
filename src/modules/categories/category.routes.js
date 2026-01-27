@@ -26,6 +26,15 @@ router.get(
 );
 
 /**
+ * ✅ NUEVA RUTA - Obtener contexto SEO de categoría
+ */
+router.get(
+  "/:id/seo",
+  validate(idValidation),
+  categoryController.getCategorySEOContext
+);
+
+/**
  * RUTAS PROTEGIDAS - ADMIN
  */
 

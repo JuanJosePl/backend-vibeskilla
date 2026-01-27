@@ -1,14 +1,25 @@
 const Product = require("./product.model")
 const Category = require("../categories/category.model")
 const ApiError = require("../../core/errors/ApiError")
+const { 
+  ProductCardDTO, 
+  ProductDetailDTO, 
+  ProductListDTO, 
+  ProductSEODTO 
+} = require("./product.utils")
 
 /**
  * @class ProductService
  * @description Lógica de negocio para productos
+ * 
+ * ✅ MEJORADO para frontend React:
+ * - DTOs optimizados para cards/grids/detalle
+ * - SEO context reutilizable desde categorías
+ * - Respuestas listas para consumo directo
  */
 class ProductService {
   /**
-   * Obtener productos con filtros avanzados y paginación
+   * ✅ MEJORADO - Obtener productos con DTOs optimizados
    */
   async getProducts(filters) {
     const {
@@ -100,8 +111,11 @@ class ProductService {
       Product.countDocuments(query),
     ])
 
+    // ✅ NUEVO: Usar ProductListDTO
+    const dtoProducts = products.map(p => new ProductListDTO(p))
+
     return {
-      products,
+      products: dtoProducts,
       pagination: {
         current: Number.parseInt(page),
         limit: limitInt,
@@ -114,7 +128,7 @@ class ProductService {
   }
 
   /**
-   * Obtener producto por slug
+   * ✅ MEJORADO - Obtener producto por slug con SEO context completo
    */
   async getProductBySlug(slug) {
     const product = await Product.findOne({
@@ -130,13 +144,21 @@ class ProductService {
       throw ApiError.notFound("Producto no encontrado")
     }
 
+    // Incrementar vistas asíncrono
     Product.findByIdAndUpdate(product._id, { $inc: { views: 1 }, lastViewedAt: new Date() }, { new: false }).exec()
 
-    return product
+    // ✅ NUEVO: Obtener contexto SEO completo (incluye categoría)
+    const seoContext = await product.getSEOContext()
+
+    // ✅ NUEVO: Usar ProductDetailDTO con SEO context
+    return new ProductDetailDTO(product, {
+      breadcrumb: seoContext.breadcrumb,
+      seoContext: new ProductSEODTO(seoContext)
+    })
   }
 
   /**
-   * ✅ CORREGIDO - Obtener producto por ID
+   * ✅ MEJORADO - Obtener producto por ID con estructura completa
    */
   async getProductById(productId) {
     const product = await Product.findById(productId)
@@ -184,7 +206,7 @@ class ProductService {
   }
 
   /**
-   * Obtener productos destacados
+   * ✅ MEJORADO - Obtener productos destacados con DTOs
    */
   async getFeaturedProducts(limit = 8) {
     const products = await Product.find({
@@ -200,7 +222,8 @@ class ProductService {
       .sort({ createdAt: -1 })
       .lean()
 
-    return products
+    // ✅ NUEVO: Usar ProductCardDTO
+    return products.map(p => new ProductCardDTO(p))
   }
 
   /**
@@ -264,63 +287,73 @@ class ProductService {
       relatedProducts = [...relatedProducts, ...additional]
     }
 
-    return relatedProducts.slice(0, limit)
+    // ✅ NUEVO: Usar ProductCardDTO
+    return relatedProducts.slice(0, limit).map(p => new ProductCardDTO(p))
   }
 
   /**
-   * Buscar productos con full-text search
+   * Buscar productos
    */
-  async searchProducts(searchQuery, limit = 10, filters = {}) {
-    if (!searchQuery || searchQuery.trim().length === 0) {
-      throw ApiError.badRequest("El término de búsqueda es requerido")
+  async searchProducts(query, limit = 10) {
+    if (!query || query.trim().length < 2) {
+      throw ApiError.badRequest("El término de búsqueda debe tener al menos 2 caracteres")
     }
 
-    const query = {
+    const products = await Product.find({
+      $text: { $search: query },
       status: "active",
       isPublished: true,
       isActive: true,
-      $text: { $search: searchQuery },
-    }
-
-    if (filters.category) {
-      const category = await Category.findOne({ slug: filters.category })
-      if (category) query.categories = category._id
-    }
-
-    if (filters.minPrice || filters.maxPrice) {
-      query.price = {}
-      if (filters.minPrice) query.price.$gte = Number(filters.minPrice)
-      if (filters.maxPrice) query.price.$lte = Number(filters.maxPrice)
-    }
-
-    const products = await Product.find(query)
-      .select("name slug price comparePrice images brand shortDescription rating isFeatured")
-      .populate("categories", "name slug")
-      .limit(Number.parseInt(limit))
-      .sort({ score: { $meta: "textScore" }, isFeatured: -1, salesCount: -1 })
+    })
+      .select("name slug price comparePrice images brand rating stock")
+      .limit(limit)
       .lean()
 
-    return products
+    // ✅ NUEVO: Usar ProductCardDTO
+    return products.map(p => new ProductCardDTO(p))
   }
 
   /**
-   * ✅✅✅ CRÍTICO - CREAR PRODUCTO CORREGIDO
+   * ✅ MEJORADO - Crear producto con validación completa
    */
   async createProduct(productData, userId) {
-    console.log("📥 ProductService.createProduct - Datos recibidos:", JSON.stringify(productData, null, 2))
+    // Validar categorías
+    if (productData.categories && productData.categories.length > 0) {
+      const categoriesExist = await Category.countDocuments({
+        _id: { $in: productData.categories },
+      })
+      if (categoriesExist !== productData.categories.length) {
+        throw ApiError.badRequest("Una o más categorías no existen")
+      }
+    }
+
+    if (productData.mainCategory) {
+      const mainCategoryExists = await Category.exists({ _id: productData.mainCategory })
+      if (!mainCategoryExists) {
+        throw ApiError.badRequest("La categoría principal no existe")
+      }
+    }
+
+    // Validar precios
+    if (productData.comparePrice && productData.comparePrice < productData.price) {
+      throw ApiError.badRequest("El precio de comparación debe ser mayor que el precio")
+    }
+
+    if (productData.costPrice && productData.costPrice > productData.price) {
+      throw ApiError.badRequest("El precio de costo debe ser menor que el precio de venta")
+    }
 
     // ===============================
     // 1️⃣ CONSTRUIR PAYLOAD LIMPIO
     // ===============================
     const cleanData = {
-      // Básico
-      name: productData.name?.trim() || "",
-      slug: productData.slug || "",
-      description: productData.description?.trim() || "",
-      shortDescription: productData.shortDescription?.trim() || "", // ✅ INCLUIDO
+      // Básicos
+      name: productData.name?.trim(),
+      description: productData.description?.trim(),
+      shortDescription: productData.shortDescription?.trim() || "",
 
       // Precios
-      price: Number.parseFloat(productData.price) || 0,
+      price: Number.parseFloat(productData.price),
       comparePrice: productData.comparePrice ? Number.parseFloat(productData.comparePrice) : undefined,
       costPrice: productData.costPrice ? Number.parseFloat(productData.costPrice) : undefined,
 
@@ -342,7 +375,7 @@ class ProductService {
       // Imágenes
       images: Array.isArray(productData.images) ? productData.images : [],
 
-      // ✅✅✅ ATRIBUTOS - CRÍTICO
+      // ✅ ATRIBUTOS - CRÍTICO
       attributes: {
         size: Array.isArray(productData.attributes?.size) ? productData.attributes.size : [],
         color: Array.isArray(productData.attributes?.color) ? productData.attributes.color : [],
@@ -356,7 +389,7 @@ class ProductService {
         },
       },
 
-      // ✅✅✅ SEO - CRÍTICO
+      // ✅ SEO - CRÍTICO
       seo: {
         title: productData.seo?.title || "",
         description: productData.seo?.description || "",
@@ -364,7 +397,7 @@ class ProductService {
         canonicalUrl: productData.seo?.canonicalUrl || undefined,
       },
 
-      // ✅✅✅ WEIGHT SEPARADO - CRÍTICO
+      // ✅ WEIGHT SEPARADO - CRÍTICO
       weight: {
         value: productData.weight?.value ? Number(productData.weight.value) : undefined,
         unit: productData.weight?.unit || "kg",
@@ -391,20 +424,16 @@ class ProductService {
       }
     })
 
-    console.log("✅ ProductService.createProduct - Datos limpios a guardar:", JSON.stringify(cleanData, null, 2))
-
     // ===============================
     // 3️⃣ CREAR PRODUCTO
     // ===============================
     const product = await Product.create(cleanData)
 
-    console.log("💾 Producto creado en DB:", JSON.stringify(product, null, 2))
-
     return product
   }
 
   /**
-   * ✅ CORREGIDO - Actualizar producto
+   * ✅ MEJORADO - Actualizar producto
    */
   async updateProduct(productId, updateData, userId) {
     const product = await Product.findById(productId)
@@ -539,7 +568,7 @@ class ProductService {
   }
 
   /**
-   * Obtener productos más vendidos
+   * ✅ MEJORADO - Obtener productos más vendidos con DTOs
    */
   async getTopSellingProducts(limit = 10, period = "all") {
     const query = { status: "active", isPublished: true }
@@ -551,7 +580,8 @@ class ProductService {
       .sort({ salesCount: -1 })
       .lean()
 
-    return products
+    // ✅ NUEVO: Usar ProductCardDTO
+    return products.map(p => new ProductCardDTO(p))
   }
 
   /**
@@ -579,14 +609,30 @@ class ProductService {
       }),
     ])
 
+    // ✅ NUEVO: Usar ProductListDTO
     return {
-      products,
+      products: products.map(p => new ProductListDTO(p)),
       pagination: {
         current: page,
         pages: Math.ceil(total / limit),
         total,
       },
     }
+  }
+
+  /**
+   * ✅ NUEVO - Obtener contexto SEO de un producto (reutilizable)
+   */
+  async getProductSEOContext(productId) {
+    const product = await Product.findById(productId)
+      .populate("mainCategory", "name slug")
+    
+    if (!product) {
+      throw ApiError.notFound("Producto no encontrado")
+    }
+
+    const seoContext = await product.getSEOContext()
+    return new ProductSEODTO(seoContext)
   }
 }
 

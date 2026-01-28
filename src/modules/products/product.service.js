@@ -12,10 +12,11 @@ const {
  * @class ProductService
  * @description Lógica de negocio para productos
  * 
- * ✅ MEJORADO para frontend React:
+ * ✅ ACTUALIZADO según contrato frontend-backend:
  * - DTOs optimizados para cards/grids/detalle
  * - SEO context reutilizable desde categorías
- * - Respuestas listas para consumo directo
+ * - Respuestas usando 'data' consistentemente
+ * - Método getProductsByCategory dedicado
  */
 class ProductService {
   /**
@@ -111,7 +112,7 @@ class ProductService {
       Product.countDocuments(query),
     ])
 
-    // ✅ NUEVO: Usar ProductListDTO
+    // ✅ Usar ProductListDTO
     const dtoProducts = products.map(p => new ProductListDTO(p))
 
     return {
@@ -125,6 +126,29 @@ class ProductService {
         hasPrevPage: page > 1,
       },
     }
+  }
+
+  /**
+   * ✅ NUEVO - Obtener productos por categoría (ruta dedicada)
+   * Frontend usa: GET /products/category/:categorySlug
+   */
+  async getProductsByCategory(categorySlug, filters = {}) {
+    // Buscar categoría
+    const category = await Category.findOne({
+      slug: categorySlug,
+      status: "active",
+      isPublished: true
+    })
+
+    if (!category) {
+      throw ApiError.notFound("Categoría no encontrada")
+    }
+
+    // Usar getProducts con el filtro de categoría
+    return this.getProducts({
+      ...filters,
+      category: category._id
+    })
   }
 
   /**
@@ -147,10 +171,10 @@ class ProductService {
     // Incrementar vistas asíncrono
     Product.findByIdAndUpdate(product._id, { $inc: { views: 1 }, lastViewedAt: new Date() }, { new: false }).exec()
 
-    // ✅ NUEVO: Obtener contexto SEO completo (incluye categoría)
+    // ✅ CRÍTICO: Obtener contexto SEO completo (incluye breadcrumb de categoría)
     const seoContext = await product.getSEOContext()
 
-    // ✅ NUEVO: Usar ProductDetailDTO con SEO context
+    // ✅ Usar ProductDetailDTO con SEO context y breadcrumb
     return new ProductDetailDTO(product, {
       breadcrumb: seoContext.breadcrumb,
       seoContext: new ProductSEODTO(seoContext)
@@ -222,7 +246,7 @@ class ProductService {
       .sort({ createdAt: -1 })
       .lean()
 
-    // ✅ NUEVO: Usar ProductCardDTO
+    // ✅ Usar ProductCardDTO
     return products.map(p => new ProductCardDTO(p))
   }
 
@@ -246,25 +270,27 @@ class ProductService {
 
     let relatedProducts = []
 
+    // Primero: Productos de mismas categorías
     if (currentProduct.categories && currentProduct.categories.length > 0) {
       relatedProducts = await Product.find({
         ...relatedQuery,
         categories: { $in: currentProduct.categories },
       })
-        .select("name price comparePrice images slug shortDescription isFeatured brand stock rating")
+        .select("name price comparePrice images slug shortDescription isFeatured brand stock rating lowStockThreshold allowBackorder trackQuantity")
         .populate("categories", "name slug")
         .limit(limit)
         .sort({ isFeatured: -1, salesCount: -1, createdAt: -1 })
         .lean()
     }
 
+    // Segundo: Productos de misma marca
     if (relatedProducts.length < limit && currentProduct.brand) {
       const additional = await Product.find({
         ...relatedQuery,
         _id: { $nin: relatedProducts.map((p) => p._id) },
         brand: currentProduct.brand,
       })
-        .select("name price comparePrice images slug shortDescription isFeatured brand stock rating")
+        .select("name price comparePrice images slug shortDescription isFeatured brand stock rating lowStockThreshold allowBackorder trackQuantity")
         .populate("categories", "name slug")
         .limit(limit - relatedProducts.length)
         .sort({ salesCount: -1, createdAt: -1 })
@@ -273,12 +299,13 @@ class ProductService {
       relatedProducts = [...relatedProducts, ...additional]
     }
 
+    // Tercero: Productos populares
     if (relatedProducts.length < limit) {
       const additional = await Product.find({
         ...relatedQuery,
         _id: { $nin: relatedProducts.map((p) => p._id) },
       })
-        .select("name price comparePrice images slug shortDescription isFeatured brand stock rating")
+        .select("name price comparePrice images slug shortDescription isFeatured brand stock rating lowStockThreshold allowBackorder trackQuantity")
         .populate("categories", "name slug")
         .limit(limit - relatedProducts.length)
         .sort({ isFeatured: -1, salesCount: -1, rating: -1 })
@@ -287,7 +314,7 @@ class ProductService {
       relatedProducts = [...relatedProducts, ...additional]
     }
 
-    // ✅ NUEVO: Usar ProductCardDTO
+    // ✅ Usar ProductCardDTO
     return relatedProducts.slice(0, limit).map(p => new ProductCardDTO(p))
   }
 
@@ -305,193 +332,57 @@ class ProductService {
       isPublished: true,
       isActive: true,
     })
-      .select("name slug price comparePrice images brand rating stock")
+      .select("name price comparePrice images slug shortDescription brand stock rating")
+      .populate("categories", "name slug")
       .limit(limit)
       .lean()
 
-    // ✅ NUEVO: Usar ProductCardDTO
+    // ✅ Usar ProductCardDTO
     return products.map(p => new ProductCardDTO(p))
   }
 
   /**
-   * ✅ MEJORADO - Crear producto con validación completa
+   * Crear producto
    */
   async createProduct(productData, userId) {
-    // Validar categorías
-    if (productData.categories && productData.categories.length > 0) {
-      const categoriesExist = await Category.countDocuments({
-        _id: { $in: productData.categories },
-      })
-      if (categoriesExist !== productData.categories.length) {
-        throw ApiError.badRequest("Una o más categorías no existen")
-      }
-    }
-
-    if (productData.mainCategory) {
-      const mainCategoryExists = await Category.exists({ _id: productData.mainCategory })
-      if (!mainCategoryExists) {
-        throw ApiError.badRequest("La categoría principal no existe")
-      }
-    }
-
-    // Validar precios
-    if (productData.comparePrice && productData.comparePrice < productData.price) {
-      throw ApiError.badRequest("El precio de comparación debe ser mayor que el precio")
-    }
-
-    if (productData.costPrice && productData.costPrice > productData.price) {
-      throw ApiError.badRequest("El precio de costo debe ser menor que el precio de venta")
-    }
-
-    // ===============================
-    // 1️⃣ CONSTRUIR PAYLOAD LIMPIO
-    // ===============================
-    const cleanData = {
-      // Básicos
-      name: productData.name?.trim(),
-      description: productData.description?.trim(),
-      shortDescription: productData.shortDescription?.trim() || "",
-
-      // Precios
-      price: Number.parseFloat(productData.price),
-      comparePrice: productData.comparePrice ? Number.parseFloat(productData.comparePrice) : undefined,
-      costPrice: productData.costPrice ? Number.parseFloat(productData.costPrice) : undefined,
-
-      // Inventario
-      stock: Number.parseInt(productData.stock) || 0,
-      sku: productData.sku?.trim() || "",
-      trackQuantity: productData.trackQuantity !== undefined ? productData.trackQuantity : true,
-      allowBackorder: productData.allowBackorder !== undefined ? productData.allowBackorder : false,
-      lowStockThreshold: productData.lowStockThreshold || 5,
-
-      // Categorías
-      categories: Array.isArray(productData.categories) ? productData.categories : [],
-      mainCategory: productData.mainCategory && productData.mainCategory.trim() !== "" ? productData.mainCategory : undefined,
-
-      // Marca y Tags
-      brand: productData.brand?.trim() || "",
-      tags: Array.isArray(productData.tags) ? productData.tags.map((t) => t.toLowerCase().trim()) : [],
-
-      // Imágenes
-      images: Array.isArray(productData.images) ? productData.images : [],
-
-      // ✅ ATRIBUTOS - CRÍTICO
-      attributes: {
-        size: Array.isArray(productData.attributes?.size) ? productData.attributes.size : [],
-        color: Array.isArray(productData.attributes?.color) ? productData.attributes.color : [],
-        material: Array.isArray(productData.attributes?.material) ? productData.attributes.material : [],
-        weight: productData.attributes?.weight || null,
-        dimensions: {
-          length: Number(productData.attributes?.dimensions?.length) || 0,
-          width: Number(productData.attributes?.dimensions?.width) || 0,
-          height: Number(productData.attributes?.dimensions?.height) || 0,
-          unit: productData.attributes?.dimensions?.unit || "cm",
-        },
-      },
-
-      // ✅ SEO - CRÍTICO
-      seo: {
-        title: productData.seo?.title || "",
-        description: productData.seo?.description || "",
-        metaKeywords: Array.isArray(productData.seo?.metaKeywords) ? productData.seo.metaKeywords : [],
-        canonicalUrl: productData.seo?.canonicalUrl || undefined,
-      },
-
-      // ✅ WEIGHT SEPARADO - CRÍTICO
-      weight: {
-        value: productData.weight?.value ? Number(productData.weight.value) : undefined,
-        unit: productData.weight?.unit || "kg",
-      },
-
-      // Estados
-      status: productData.status || "active",
-      visibility: productData.visibility || "public",
-      isActive: Boolean(productData.isActive),
-      isFeatured: Boolean(productData.isFeatured),
-      isPublished: Boolean(productData.isPublished),
-      requiresShipping: productData.requiresShipping !== undefined ? productData.requiresShipping : true,
-
-      // Auditoría
+    const product = await Product.create({
+      ...productData,
       createdBy: userId,
-    }
-
-    // ===============================
-    // 2️⃣ LIMPIAR undefined
-    // ===============================
-    Object.keys(cleanData).forEach((key) => {
-      if (cleanData[key] === undefined) {
-        delete cleanData[key]
-      }
     })
 
-    // ===============================
-    // 3️⃣ CREAR PRODUCTO
-    // ===============================
-    const product = await Product.create(cleanData)
-
-    return product
+    return await this.getProductById(product._id)
   }
 
   /**
-   * ✅ MEJORADO - Actualizar producto
+   * Actualizar producto
    */
   async updateProduct(productId, updateData, userId) {
-    const product = await Product.findById(productId)
+    const product = await Product.findByIdAndUpdate(
+      productId,
+      {
+        ...updateData,
+        updatedBy: userId,
+      },
+      {
+        new: true,
+        runValidators: true,
+      }
+    )
+
     if (!product) {
       throw ApiError.notFound("Producto no encontrado")
     }
 
-    // Validar precios
-    if (updateData.price && updateData.comparePrice && updateData.comparePrice < updateData.price) {
-      throw ApiError.badRequest("El precio de comparación debe ser mayor que el precio")
-    }
-
-    if (updateData.costPrice && updateData.price && updateData.costPrice > updateData.price) {
-      throw ApiError.badRequest("El precio de costo debe ser menor que el precio de venta")
-    }
-
-    // ✅ CONSTRUIR PAYLOAD COMPLETO
-    const cleanData = {
-      ...updateData,
-      updatedBy: userId,
-    }
-
-    // Normalizar números
-    if (updateData.price !== undefined) cleanData.price = Number.parseFloat(updateData.price)
-    if (updateData.comparePrice !== undefined) cleanData.comparePrice = Number.parseFloat(updateData.comparePrice)
-    if (updateData.costPrice !== undefined) cleanData.costPrice = Number.parseFloat(updateData.costPrice)
-    if (updateData.stock !== undefined) cleanData.stock = Number.parseInt(updateData.stock)
-
-    // Normalizar tags
-    if (updateData.tags) {
-      cleanData.tags = updateData.tags.map((t) => t.toLowerCase().trim())
-    }
-
-    // ✅ CRÍTICO: Solo eliminar undefined, NO eliminar false o 0
-    Object.keys(cleanData).forEach((key) => {
-      if (cleanData[key] === undefined) {
-        delete cleanData[key]
-      }
-    })
-
-    const updated = await Product.findByIdAndUpdate(productId, cleanData, { new: true, runValidators: true })
-      .populate("categories", "name slug")
-      .populate("mainCategory", "name slug")
-
-    return updated
+    return await this.getProductById(product._id)
   }
 
   /**
-   * Archivar producto (soft delete)
+   * Eliminar producto (soft delete)
    */
   async deleteProduct(productId) {
     const product = await Product.findByIdAndUpdate(
       productId,
-      {
-        status: "archived",
-        isPublished: false,
-        isActive: false,
-      },
+      { status: "archived" },
       { new: true }
     )
 
@@ -503,53 +394,57 @@ class ProductService {
   }
 
   /**
-   * Verificar disponibilidad de stock
+   * Verificar stock disponible
    */
   async checkStock(productId, quantity) {
-    const product = await Product.findById(productId)
+    const product = await Product.findById(productId).select("stock trackQuantity allowBackorder")
 
     if (!product) {
       throw ApiError.notFound("Producto no encontrado")
     }
 
-    if (!product.isAvailable()) {
-      throw ApiError.conflict("El producto no está disponible")
+    if (!product.trackQuantity) {
+      return {
+        available: true,
+        quantity: quantity,
+        message: "Producto disponible (sin control de inventario)",
+      }
     }
 
-    if (product.trackQuantity && !product.allowBackorder && product.stock < quantity) {
-      throw ApiError.conflict(`Stock insuficiente. Disponibles: ${product.stock}`)
+    if (product.stock >= quantity) {
+      return {
+        available: true,
+        quantity: quantity,
+        stock: product.stock,
+        message: "Stock disponible",
+      }
+    }
+
+    if (product.allowBackorder) {
+      return {
+        available: true,
+        quantity: quantity,
+        stock: product.stock,
+        backorder: quantity - product.stock,
+        message: "Disponible bajo pedido",
+      }
     }
 
     return {
-      available: true,
+      available: false,
+      quantity: quantity,
       stock: product.stock,
-      allowBackorder: product.allowBackorder,
+      message: "Stock insuficiente",
     }
   }
 
   /**
-   * Obtener productos por categoría
-   */
-  async getProductsByCategory(categorySlug, filters = {}) {
-    const category = await Category.findOne({ slug: categorySlug })
-    if (!category) {
-      throw ApiError.notFound("Categoría no encontrada")
-    }
-
-    return await this.getProducts({
-      ...filters,
-      category: category._id,
-    })
-  }
-
-  /**
-   * Obtener productos en stock bajo
+   * Obtener productos con stock bajo
    */
   async getLowStockProducts(threshold = null) {
     const query = {
-      status: "active",
       trackQuantity: true,
-      isActive: true,
+      status: "active",
     }
 
     if (threshold) {
@@ -559,8 +454,7 @@ class ProductService {
     }
 
     const products = await Product.find(query)
-      .select("name sku stock lowStockThreshold price")
-      .populate("categories", "name")
+      .select("name slug sku stock lowStockThreshold price")
       .sort({ stock: 1 })
       .lean()
 
@@ -568,56 +462,22 @@ class ProductService {
   }
 
   /**
-   * ✅ MEJORADO - Obtener productos más vendidos con DTOs
+   * Obtener productos más vendidos
    */
-  async getTopSellingProducts(limit = 10, period = "all") {
-    const query = { status: "active", isPublished: true }
-
-    const products = await Product.find(query)
-      .select("name slug images price salesCount rating")
+  async getTopSellingProducts(limit = 10) {
+    const products = await Product.find({
+      status: "active",
+      isPublished: true,
+      isActive: true,
+    })
+      .select("name price comparePrice images slug shortDescription brand stock rating salesCount")
       .populate("categories", "name slug")
       .limit(limit)
-      .sort({ salesCount: -1 })
+      .sort({ salesCount: -1, rating: -1 })
       .lean()
 
-    // ✅ NUEVO: Usar ProductCardDTO
+    // ✅ Usar ProductCardDTO
     return products.map(p => new ProductCardDTO(p))
-  }
-
-  /**
-   * Obtener productos por tags
-   */
-  async getProductsByTag(tag, limit = 12, page = 1) {
-    const skip = (page - 1) * limit
-
-    const [products, total] = await Promise.all([
-      Product.find({
-        tags: tag,
-        status: "active",
-        isPublished: true,
-        isActive: true,
-      })
-        .limit(limit)
-        .skip(skip)
-        .populate("categories", "name slug")
-        .lean(),
-      Product.countDocuments({
-        tags: tag,
-        status: "active",
-        isPublished: true,
-        isActive: true,
-      }),
-    ])
-
-    // ✅ NUEVO: Usar ProductListDTO
-    return {
-      products: products.map(p => new ProductListDTO(p)),
-      pagination: {
-        current: page,
-        pages: Math.ceil(total / limit),
-        total,
-      },
-    }
   }
 
   /**
@@ -626,7 +486,7 @@ class ProductService {
   async getProductSEOContext(productId) {
     const product = await Product.findById(productId)
       .populate("mainCategory", "name slug")
-    
+
     if (!product) {
       throw ApiError.notFound("Producto no encontrado")
     }

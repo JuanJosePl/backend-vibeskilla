@@ -13,14 +13,15 @@ const {
  * @class CategoryService
  * @description Servicio profesional de categorías con análisis y cache
  *
- * ✅ MEJORADO para frontend React:
- * - productCount SIEMPRE presente en respuestas
+ * ✅ ACTUALIZADO según contrato frontend-backend:
+ * - productCount calculado EN TIEMPO REAL en TODOS los endpoints
  * - SEO context completo y reutilizable
  * - DTOs optimizados para UI
+ * - Breadcrumb incluido en detalle
  */
 class CategoryService {
   /**
-   * ✅ MEJORADO - Obtener todas las categorías con productCount garantizado
+   * ✅ MEJORADO - Obtener todas las categorías con productCount EN TIEMPO REAL
    */
   async getCategories(options = {}) {
     const {
@@ -28,7 +29,7 @@ class CategoryService {
       includeDrafts = false,
       featured = false,
       parentOnly = false,
-      withProductCount = true, // ✅ AHORA TRUE POR DEFECTO
+      withProductCount = true, // ✅ TRUE por defecto
       sortBy = "order",
       page = 1,
       limit = 50,
@@ -71,7 +72,7 @@ class CategoryService {
       .populate("parentCategory", "name slug")
       .lean()
 
-    // ✅ CRÍTICO: Agregar productCount EN TIEMPO REAL si se solicita
+    // ✅ CRÍTICO: Calcular productCount EN TIEMPO REAL
     if (withProductCount) {
       categories = await Promise.all(
         categories.map(async (cat) => {
@@ -123,17 +124,17 @@ class CategoryService {
       console.error("[CategoryService] Error incrementing views:", err)
     );
 
-    // Obtener subcategorías con productCount
+    // Obtener subcategorías
     const subcategories = await Category.find({
       parentCategory: category._id,
       status: "active",
       isPublished: true,
     })
-      .select("name slug images.thumbnail images.icon order productCount")
+      .select("name slug images.thumbnail images.icon order productCount description")
       .sort({ order: 1, name: 1 })
       .lean();
 
-    // ✅ MEJORADO: Actualizar productCount de subcategorías en tiempo real
+    // ✅ CRÍTICO: Actualizar productCount de subcategorías EN TIEMPO REAL
     const subcategoriesWithCount = await Promise.all(
       subcategories.map(async (sub) => {
         const count = await Product.countDocuments({
@@ -145,13 +146,13 @@ class CategoryService {
       })
     );
 
-    // Obtener breadcrumb
+    // ✅ CRÍTICO: Obtener breadcrumb preconstruido
     const breadcrumb = await category.getBreadcrumb();
 
-    // ✅ NUEVO: Obtener contexto SEO completo
+    // ✅ CRÍTICO: Obtener contexto SEO completo
     const seoContext = await category.getSEOContext();
 
-    // ✅ Contar productos EN TIEMPO REAL
+    // ✅ CRÍTICO: Contar productos EN TIEMPO REAL
     const productCount = await Product.countDocuments({
       categories: category._id,
       status: "active",
@@ -321,7 +322,7 @@ class CategoryService {
   }
 
   /**
-   * ✅ MEJORADO - Obtener árbol jerárquico con productCount
+   * ✅ MEJORADO - Obtener árbol jerárquico con productCount EN TIEMPO REAL
    */
   async getCategoryTree() {
     const categories = await Category.find({
@@ -332,7 +333,7 @@ class CategoryService {
       .sort({ order: 1, name: 1 })
       .lean();
 
-    // ✅ CRÍTICO: Actualizar productCount en tiempo real
+    // ✅ CRÍTICO: Actualizar productCount EN TIEMPO REAL para cada nodo
     const categoriesWithCount = await Promise.all(
       categories.map(async (cat) => {
         const count = await Product.countDocuments({
@@ -344,6 +345,7 @@ class CategoryService {
       })
     );
 
+    // Construir árbol recursivo
     const buildTree = (parentId = null) => {
       return categoriesWithCount
         .filter((cat) => {
@@ -362,7 +364,7 @@ class CategoryService {
   }
 
   /**
-   * ✅ MEJORADO - Obtener categorías destacadas con productCount
+   * ✅ MEJORADO - Obtener categorías destacadas con productCount EN TIEMPO REAL
    */
   async getFeaturedCategories(limit = 6) {
     const categories = await Category.find({
@@ -375,7 +377,7 @@ class CategoryService {
       .sort({ order: 1 })
       .lean();
 
-    // ✅ CRÍTICO: Actualizar productCount en tiempo real
+    // ✅ CRÍTICO: Actualizar productCount EN TIEMPO REAL
     const categoriesWithCount = await Promise.all(
       categories.map(async (cat) => {
         const count = await Product.countDocuments({
@@ -387,7 +389,7 @@ class CategoryService {
       })
     );
 
-    // ✅ NUEVO: Usar CategoryCardDTO para UI
+    // ✅ Usar CategoryCardDTO para UI
     return categoriesWithCount.map(cat => new CategoryCardDTO(cat));
   }
 
@@ -411,12 +413,24 @@ class CategoryService {
       .limit(20)
       .lean();
 
+    // ✅ CRÍTICO: Actualizar productCount EN TIEMPO REAL
+    const categoriesWithCount = await Promise.all(
+      categories.map(async (cat) => {
+        const count = await Product.countDocuments({
+          categories: cat._id,
+          status: "active",
+          isPublished: true,
+        });
+        return { ...cat, productCount: count };
+      })
+    );
+
     // ✅ Usar DTO
-    return categories.map(cat => new CategoryListDTO(cat));
+    return categoriesWithCount.map(cat => new CategoryListDTO(cat));
   }
 
   /**
-   * ✅ MEJORADO - Obtener categorías más populares con productCount
+   * ✅ MEJORADO - Obtener categorías más populares con productCount EN TIEMPO REAL
    */
   async getPopularCategories(limit = 10) {
     const categories = await Category.find({
@@ -428,7 +442,7 @@ class CategoryService {
       .select("name slug views productCount images.thumbnail")
       .lean();
 
-    // ✅ CRÍTICO: Actualizar productCount en tiempo real
+    // ✅ CRÍTICO: Actualizar productCount EN TIEMPO REAL
     const categoriesWithCount = await Promise.all(
       categories.map(async (cat) => {
         const count = await Product.countDocuments({

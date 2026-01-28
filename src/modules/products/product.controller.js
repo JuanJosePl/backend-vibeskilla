@@ -5,7 +5,10 @@ const ApiError = require("../../core/errors/ApiError");
 /**
  * @class ProductController
  * @description Controlador delgado para PRODUCTS
- * Responsabilidad: Recibir requests, validar, llamar service, retornar respuestas
+ * 
+ * ✅ ACTUALIZADO según contrato frontend-backend:
+ * - Respuestas usando 'data' consistentemente
+ * - Controlador para ruta dedicada /category/:categorySlug
  */
 
 const getProducts = catchAsync(async (req, res) => {
@@ -14,7 +17,25 @@ const getProducts = catchAsync(async (req, res) => {
   res.json({
     success: true,
     message: "Productos obtenidos exitosamente",
-    data: result.products,
+    data: result.products, // ✅ CRÍTICO: usar 'data', no 'products'
+    pagination: result.pagination,
+  });
+});
+
+/**
+ * ✅ NUEVO - Obtener productos por categoría (ruta dedicada)
+ * GET /api/products/category/:categorySlug
+ */
+const getProductsByCategory = catchAsync(async (req, res) => {
+  const { categorySlug } = req.params;
+  const result = await productService.getProductsByCategory(
+    categorySlug,
+    req.query
+  );
+
+  res.json({
+    success: true,
+    data: result.products, // ✅ Mismo formato que getProducts
     pagination: result.pagination,
   });
 });
@@ -142,20 +163,6 @@ const checkStock = catchAsync(async (req, res) => {
   });
 });
 
-const getProductsByCategory = catchAsync(async (req, res) => {
-  const { categorySlug } = req.params;
-  const result = await productService.getProductsByCategory(
-    categorySlug,
-    req.query
-  );
-
-  res.json({
-    success: true,
-    data: result.products,
-    pagination: result.pagination,
-  });
-});
-
 const getLowStockProducts = catchAsync(async (req, res) => {
   if (!req.user || req.user.role !== "admin") {
     throw ApiError.forbidden("Solo administradores pueden acceder a esta ruta");
@@ -211,8 +218,8 @@ module.exports = {
   updateProduct,
   deleteProduct,
   checkStock,
-  getProductsByCategory,
+  getProductsByCategory, // ✅ NUEVO
   getLowStockProducts,
   getTopSellingProducts,
-  getProductSEOContext,
+  getProductSEOContext, // ✅ NUEVO
 };

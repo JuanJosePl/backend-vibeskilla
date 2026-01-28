@@ -1,9 +1,16 @@
 /**
  * @description DTOs para el módulo Category optimizados para frontend
+ * 
+ * ✅ ACTUALIZADO según análisis de contrato frontend-backend
+ * - productCount SIEMPRE presente y calculado en tiempo real
+ * - seoContext completo con metaTags listos para usar
+ * - breadcrumb incluido en todas las respuestas de detalle
+ * - UI helpers para facilitar renderizado
  */
 
 /**
- * ✅ MEJORADO - CategoryListDTO con productCount garantizado
+ * ✅ CategoryListDTO - Para listados generales
+ * Usado en: GET /categories, GET /categories/search
  */
 class CategoryListDTO {
   constructor(category) {
@@ -11,14 +18,19 @@ class CategoryListDTO {
     this.name = category.name;
     this.slug = category.slug;
     this.description = category.description || "";
+    
+    // ✅ CRÍTICO: Imágenes siempre presentes (aunque sean null)
     this.images = {
       thumbnail: category.images?.thumbnail || null,
       icon: category.images?.icon || null
     };
+    
     // ✅ CRÍTICO: productCount SIEMPRE presente
     this.productCount = category.productCount || 0;
     this.featured = category.featured || false;
     this.order = category.order || 0;
+    
+    // ✅ parentCategory poblado con datos mínimos
     this.parentCategory = category.parentCategory 
       ? {
           _id: category.parentCategory._id,
@@ -27,14 +39,15 @@ class CategoryListDTO {
         }
       : null;
     
-    // ✅ NUEVO - UI helpers
+    // ✅ UI helpers
     this.hasProducts = (category.productCount || 0) > 0;
     this.url = `/categories/${category.slug}`;
   }
 }
 
 /**
- * ✅ MEJORADO - CategoryDetailDTO con SEO completo y contexto
+ * ✅ CategoryDetailDTO - Para página de detalle
+ * Usado en: GET /categories/:slug
  */
 class CategoryDetailDTO {
   constructor(category, extras = {}) {
@@ -44,14 +57,14 @@ class CategoryDetailDTO {
     this.slug = category.slug;
     this.description = category.description || "";
     
-    // Imágenes
+    // ✅ Imágenes completas (thumbnail, hero, icon)
     this.images = {
       thumbnail: category.images?.thumbnail || null,
       hero: category.images?.hero || null,
       icon: category.images?.icon || null
     };
     
-    // ✅ MEJORADO - SEO con defaults inteligentes
+    // ✅ SEO con defaults inteligentes
     this.seo = {
       metaTitle: category.seo?.metaTitle || category.name,
       metaDescription: category.seo?.metaDescription || category.description || `Productos de ${category.name}`,
@@ -67,9 +80,13 @@ class CategoryDetailDTO {
       productCount: extras.productCount !== undefined ? extras.productCount : (category.productCount || 0)
     };
     
-    // Jerarquía
+    // ✅ CRÍTICO - Breadcrumb preconstruido
     this.breadcrumb = extras.breadcrumb || [];
+    
+    // ✅ Subcategorías con productCount actualizado
     this.subcategories = extras.subcategories || [];
+    
+    // ✅ parentCategory con URL generada
     this.parentCategory = category.parentCategory 
       ? {
           _id: category.parentCategory._id,
@@ -84,12 +101,12 @@ class CategoryDetailDTO {
     this.createdAt = category.createdAt;
     this.updatedAt = category.updatedAt;
     
-    // ✅ NUEVO - UI helpers
+    // ✅ UI helpers
     this.hasProducts = (this.stats.productCount || 0) > 0;
     this.hasSubcategories = (this.subcategories?.length || 0) > 0;
     this.url = `/categories/${category.slug}`;
     
-    // ✅ NUEVO - SEO Context si está disponible
+    // ✅ NUEVO - SEO Context completo si está disponible
     if (extras.seoContext) {
       this.seoContext = extras.seoContext;
     }
@@ -97,23 +114,28 @@ class CategoryDetailDTO {
 }
 
 /**
- * ✅ MEJORADO - CategoryTreeNodeDTO con productCount
+ * ✅ CategoryTreeNodeDTO - Para árbol jerárquico
+ * Usado en: GET /categories/tree
  */
 class CategoryTreeNodeDTO {
   constructor(category, children = []) {
     this._id = category._id;
     this.name = category.name;
     this.slug = category.slug;
+    
     this.images = {
       thumbnail: category.images?.thumbnail || null,
       icon: category.images?.icon || null
     };
+    
     // ✅ CRÍTICO: productCount SIEMPRE presente
     this.productCount = category.productCount || 0;
     this.order = category.order || 0;
+    
+    // ✅ RECURSIVO: construir children con DTO
     this.children = children.map(child => new CategoryTreeNodeDTO(child, child.children || []));
     
-    // ✅ NUEVO - UI helpers
+    // ✅ UI helpers
     this.hasChildren = (this.children?.length || 0) > 0;
     this.hasProducts = (category.productCount || 0) > 0;
     this.url = `/categories/${category.slug}`;
@@ -124,7 +146,8 @@ class CategoryTreeNodeDTO {
 }
 
 /**
- * ✅ NUEVO - CategoryCardDTO para grids/cards en frontend
+ * ✅ CategoryCardDTO - Para grids/cards en frontend
+ * Usado en: GET /categories/featured
  */
 class CategoryCardDTO {
   constructor(category) {
@@ -132,13 +155,17 @@ class CategoryCardDTO {
     this.name = category.name;
     this.slug = category.slug;
     this.description = category.description || "";
+    
+    // ✅ image es thumbnail o hero (primer fallback)
     this.image = category.images?.thumbnail || category.images?.hero || null;
     this.icon = category.images?.icon || null;
+    
+    // ✅ CRÍTICO: productCount SIEMPRE presente
     this.productCount = category.productCount || 0;
     this.featured = category.featured || false;
     this.url = `/categories/${category.slug}`;
     
-    // UI helpers
+    // ✅ UI helpers
     this.hasProducts = (category.productCount || 0) > 0;
     this.displayText = category.productCount === 1 
       ? `${category.productCount} producto` 
@@ -147,7 +174,8 @@ class CategoryCardDTO {
 }
 
 /**
- * ✅ NUEVO - CategorySEODTO para contexto SEO reutilizable
+ * ✅ CategorySEODTO - Para contexto SEO reutilizable
+ * Usado en: GET /categories/:id/seo
  */
 class CategorySEODTO {
   constructor(seoContext) {
@@ -160,7 +188,7 @@ class CategorySEODTO {
     this.canonicalUrl = seoContext.canonicalUrl;
     this.breadcrumb = seoContext.breadcrumb || [];
     
-    // ✅ Meta tags listos para usar
+    // ✅ CRÍTICO - Meta tags listos para React Helmet
     this.metaTags = {
       title: this.title,
       description: this.description,

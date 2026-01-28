@@ -36,7 +36,7 @@ router.get("/top-selling", productController.getTopSellingProducts);
 // ⚠️ DEBE estar ANTES de /:slug
 router.get("/search/:query", productController.searchProducts);
 
-// GET /api/products/category/:categorySlug - Productos por categoría
+// ✅ NUEVO - GET /api/products/category/:categorySlug - Productos por categoría
 // ⚠️ DEBE estar ANTES de /:slug
 router.get("/category/:categorySlug", productController.getProductsByCategory);
 

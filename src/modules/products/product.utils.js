@@ -71,7 +71,7 @@ const getAvailabilityStatus = (product) => {
 
 /**
  * ============================================
- * ✅ NUEVOS DTOs PARA FRONTEND REACT
+ * ✅ DTOs PARA FRONTEND REACT
  * ============================================
  */
 
@@ -312,7 +312,7 @@ module.exports = {
   getAvailabilityStatus,
   formatProductResponse,
   formatProductAdmin,
-  // ✅ NUEVOS DTOs
+  // ✅ DTOs
   ProductCardDTO,
   ProductDetailDTO,
   ProductListDTO,

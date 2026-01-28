@@ -101,8 +101,8 @@ const productSchema = new mongoose.Schema(
 
     lowStockThreshold: {
       type: Number,
+      min: 0,
       default: 5,
-      min: [0, "El umbral no puede ser negativo"],
     },
 
     // ============================================
@@ -119,29 +119,29 @@ const productSchema = new mongoose.Schema(
     mainCategory: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Category",
+      index: true,
     },
 
     tags: [
       {
         type: String,
-        trim: true,
         lowercase: true,
+        trim: true,
       },
     ],
 
     // ============================================
-    // MEDIOS (IMÁGENES)
+    // IMÁGENES Y MEDIOS
     // ============================================
     images: [
       {
-        _id: false,
         url: {
           type: String,
           required: true,
         },
         altText: {
           type: String,
-          default: "",
+          maxlength: 200,
         },
         title: {
           type: String,
@@ -158,78 +158,45 @@ const productSchema = new mongoose.Schema(
     ],
 
     // ============================================
-    // ATRIBUTOS Y VARIANTES
+    // MARCA Y ATRIBUTOS
     // ============================================
     brand: {
       type: String,
       trim: true,
+      maxlength: 100,
       index: true,
     },
 
-attributes: {
-  size: [{
-    type: String,
-    trim: true,
-  }],
-
-  color: [{
-    type: String,
-    trim: true,
-  }],
-
-  material: [{
-    type: String,
-    trim: true,
-  }],
-
-  weight: {
-    type: String,
-    default: null,
-  },
-
-  dimensions: {
-    length: {
-      type: Number,
-      default: 0,
+    attributes: {
+      size: [String],
+      color: [String],
+      material: [String],
+      weight: String,
+      dimensions: {
+        length: Number,
+        width: Number,
+        height: Number,
+        unit: {
+          type: String,
+          enum: ["cm", "in", "m"],
+          default: "cm",
+        },
+      },
     },
-    width: {
-      type: Number,
-      default: 0,
-    },
-    height: {
-      type: Number,
-      default: 0,
-    },
-    unit: {
-      type: String,
-      enum: ["cm", "mm", "in"],
-      default: "cm",
-    },
-  },
-},
 
-
+    // ============================================
+    // VARIANTES
+    // ============================================
     variants: [
       {
-        _id: false,
         sku: {
           type: String,
           required: true,
-          unique: true,
         },
         name: String,
-        price: {
-          type: Number,
-          set: (v) => Number.parseFloat(v.toFixed(2)),
-        },
-        comparePrice: {
-          type: Number,
-          set: (v) => (v ? Number.parseFloat(v.toFixed(2)) : undefined),
-        },
-        stock: {
-          type: Number,
-          default: 0,
-        },
+        price: Number,
+        comparePrice: Number,
+        stock: Number,
         attributes: {
           size: String,
           color: String,
@@ -244,44 +211,35 @@ attributes: {
     ],
 
     // ============================================
-    // SEO
+    // SEO Y METADATA
     // ============================================
     seo: {
       title: {
         type: String,
-        maxlength: [60, "El SEO title no puede exceder 60 caracteres"],
+        maxlength: 60,
       },
       description: {
         type: String,
-        maxlength: [160, "La SEO description no puede exceder 160 caracteres"],
+        maxlength: 160,
       },
       metaKeywords: [String],
       canonicalUrl: String,
     },
 
     // ============================================
-    // MÉTRICAS Y ANALYTICS
+    // RATING Y REVIEWS
     // ============================================
-    views: {
-      type: Number,
-      default: 0,
-    },
-
-    salesCount: {
-      type: Number,
-      default: 0,
-    },
-
     rating: {
       average: {
         type: Number,
-        default: 0,
         min: 0,
         max: 5,
+        default: 0,
         set: (v) => Number.parseFloat(v.toFixed(1)),
       },
       count: {
         type: Number,
+        min: 0,
         default: 0,
       },
       distribution: {
@@ -294,7 +252,7 @@ attributes: {
     },
 
     // ============================================
-    // ESTADO Y CONTROL
+    // ESTADO Y VISIBILIDAD
     // ============================================
     status: {
       type: String,
@@ -310,9 +268,9 @@ attributes: {
       index: true,
     },
 
-    isFeatured: {
+    isActive: {
       type: Boolean,
-      default: false,
+      default: true,
       index: true,
     },
 
@@ -324,8 +282,48 @@ attributes: {
 
     publishedAt: Date,
 
+    isFeatured: {
+      type: Boolean,
+      default: false,
+      index: true,
+    },
+
     // ============================================
-    // AUDITORÍA Y TRACKING
+    // ENVÍO Y LOGÍSTICA
+    // ============================================
+    requiresShipping: {
+      type: Boolean,
+      default: true,
+    },
+
+    weight: {
+      value: Number,
+      unit: {
+        type: String,
+        enum: ["kg", "g", "lb", "oz"],
+        default: "kg",
+      },
+    },
+
+    // ============================================
+    // ANÁLISIS Y TRACKING
+    // ============================================
+    views: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    salesCount: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
+
+    lastViewedAt: Date,
+
+    // ============================================
+    // AUDITORÍA
     // ============================================
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -336,117 +334,62 @@ attributes: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
     },
-
-    lastViewedAt: Date,
-
-    // ============================================
-    // CONFIGURACIÓN
-    // ============================================
-    isActive: {
-      type: Boolean,
-      default: true,
-    },
-
-    requiresShipping: {
-      type: Boolean,
-      default: true,
-    },
-
-    weight: {
-      value: Number,
-      unit: { type: String, default: "kg" },
-    },
   },
   {
     timestamps: true,
-    toJSON: { virtuals: true, getters: true },
-    toObject: { virtuals: true, getters: true },
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   },
 )
 
 // ============================================
-// ÍNDICES PARA OPTIMIZACIÓN
+// ÍNDICES COMPUESTOS
 // ============================================
-
-// Índice compuesto para búsquedas comunes
 productSchema.index({ status: 1, isPublished: 1, isActive: 1 })
-productSchema.index({ isFeatured: 1, createdAt: -1 })
-productSchema.index({ price: 1, status: 1 })
 productSchema.index({ categories: 1, status: 1 })
-productSchema.index({ brand: 1, status: 1 })
-productSchema.index({ "rating.average": -1, salesCount: -1 })
-
-// Índice de texto para búsqueda full-text
-productSchema.index({
-  name: "text",
-  description: "text",
-  shortDescription: "text",
-  brand: "text",
-  tags: "text",
-})
-
-// Índice TTL para productos temporales (si aplica)
-productSchema.index({ publishedAt: 1 }, { sparse: true })
+productSchema.index({ mainCategory: 1, status: 1 })
+productSchema.index({ price: 1 })
+productSchema.index({ salesCount: -1 })
+productSchema.index({ views: -1 })
+productSchema.index({ "rating.average": -1 })
+productSchema.index({ isFeatured: 1, status: 1 })
+productSchema.index({ createdAt: -1 })
+productSchema.index({ name: "text", description: "text", tags: "text" })
 
 // ============================================
 // VIRTUALS
 // ============================================
 
 /**
- * @virtual discount
- * @description Calcula porcentaje de descuento
+ * @virtual primaryImage
+ * @description Retorna la imagen primaria o la primera
  */
-productSchema.virtual("discount").get(function () {
-  if (!this.comparePrice || this.comparePrice <= this.price) return 0
-  return Math.round(((this.comparePrice - this.price) / this.comparePrice) * 100)
+productSchema.virtual("primaryImage").get(function () {
+  if (!this.images || this.images.length === 0) return null
+  return this.images.find((img) => img.isPrimary) || this.images[0]
 })
 
 /**
  * @virtual profit
- * @description Calcula ganancia potencial
+ * @description Calcula la ganancia neta
  */
 productSchema.virtual("profit").get(function () {
   if (!this.costPrice) return 0
-  return Number.parseFloat((this.price - this.costPrice).toFixed(2))
+  return this.price - this.costPrice
 })
 
 /**
  * @virtual profitMargin
- * @description Porcentaje de margen de ganancia
+ * @description Calcula el margen de ganancia en porcentaje
  */
 productSchema.virtual("profitMargin").get(function () {
   if (!this.costPrice || this.costPrice === 0) return 0
-  return Math.round(((this.price - this.costPrice) / this.price) * 100)
+  return Math.round((this.profit / this.price) * 100)
 })
 
 /**
- * @virtual primaryImage
- * @description Obtiene imagen principal
- */
-productSchema.virtual("primaryImage").get(function () {
-  if (!this.images || this.images.length === 0) return null
-  const primary = this.images.find((img) => img.isPrimary)
-  return primary || this.images[0]
-})
-
-/**
- * @virtual isLowStock
- * @description Verifica si el stock es bajo
- */
-productSchema.virtual("isLowStock").get(function () {
-  return this.trackQuantity && this.stock <= this.lowStockThreshold
-})
-
-/**
- * @virtual isOutOfStock
- * @description Verifica si está sin stock
- */
-productSchema.virtual("isOutOfStock").get(function () {
-  return this.trackQuantity && this.stock === 0 && !this.allowBackorder
-})
-
-/**
- * ✅ NUEVO - Virtual para disponibilidad
+ * @virtual availability
+ * @description Estado de disponibilidad calculado
  */
 productSchema.virtual("availability").get(function () {
   if (!this.trackQuantity) return "available"
@@ -457,18 +400,18 @@ productSchema.virtual("availability").get(function () {
 })
 
 // ============================================
-// MIDDLEWARES PRE-SAVE
+// MIDDLEWARE
 // ============================================
 
 /**
  * @middleware pre('save')
- * @description Auto-genera slug, SKU y normaliza datos
+ * @description Validaciones y generación de slug/SKU
  */
 productSchema.pre("save", async function (next) {
   try {
-    // Generar slug si el nombre cambió
-    if (this.isModified("name") && !this.slug) {
-      this.slug = this.name
+    // Generar slug si es nuevo o se modificó el nombre
+    if (this.isNew || this.isModified("name")) {
+      const slug = this.name
         .toLowerCase()
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
@@ -477,26 +420,26 @@ productSchema.pre("save", async function (next) {
         .replace(/-+/g, "-")
         .trim()
 
-      // Verificar unicidad de slug
-      const existing = await mongoose.model("Product").findOne({
-        slug: this.slug,
+      // Verificar unicidad
+      const existing = await this.constructor.findOne({
+        slug,
         _id: { $ne: this._id },
       })
 
-      if (existing) {
-        this.slug = `${this.slug}-${Date.now()}`
-      }
+      this.slug = existing ? `${slug}-${Date.now()}` : slug
     }
 
-    // Generar SKU si es nuevo
+    // Generar SKU si es nuevo y no tiene SKU
     if (this.isNew && !this.sku) {
-      let unique = false
-      let sku
+      const prefix = "SKU"
+      const timestamp = Date.now().toString(36).toUpperCase()
+      const random = Math.random().toString(36).substr(2, 9).toUpperCase()
+      let sku = `${prefix}-${timestamp}-${random}`
 
-      while (!unique) {
-        sku = `SKU-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`
-        const existing = await mongoose.model("Product").findOne({ sku })
-        unique = !existing
+      // Verificar unicidad
+      const existingSku = await this.constructor.findOne({ sku })
+      if (existingSku) {
+        sku = `${prefix}-${Date.now()}-${random}`
       }
 
       this.sku = sku
@@ -615,16 +558,25 @@ productSchema.methods.getVariant = function (variantSku) {
 }
 
 /**
- * ✅ NUEVO - Obtener contexto SEO completo (incluyendo categoría)
+ * ✅ MEJORADO - Obtener contexto SEO completo (incluyendo categoría con breadcrumb)
  */
 productSchema.methods.getSEOContext = async function () {
   const Category = mongoose.model("Category")
   
   let categoryContext = null
+  let breadcrumb = []
+  let categoryInfo = null
+  
   if (this.mainCategory) {
     const category = await Category.findById(this.mainCategory)
     if (category) {
       categoryContext = await category.getSEOContext()
+      breadcrumb = categoryContext.breadcrumb || []
+      categoryInfo = {
+        name: category.name,
+        slug: category.slug,
+        url: `/categories/${category.slug}`
+      }
     }
   }
 
@@ -641,12 +593,8 @@ productSchema.methods.getSEOContext = async function () {
     ogDescription: this.seo?.description || this.shortDescription || this.description?.substring(0, 160),
     ogImage: this.primaryImage?.url || null,
     canonicalUrl: this.seo?.canonicalUrl || `/products/${this.slug}`,
-    breadcrumb: categoryContext?.breadcrumb || [],
-    category: categoryContext ? {
-      name: categoryContext.title,
-      slug: this.mainCategory.slug,
-      url: categoryContext.canonicalUrl
-    } : null
+    breadcrumb: breadcrumb,
+    category: categoryInfo
   }
 }
 

@@ -66,4 +66,12 @@ router.post('/move-to-cart', wishlistController.moveToCart);
  */
 router.get('/price-changes', wishlistController.getPriceChanges);
 
+/**
+ * @route   POST /api/wishlist/sync
+ * @desc    Sincronizar wishlist guest → user
+ * @access  Private
+ */
+router.post('/sync', wishlistController.syncGuestWishlist );
+
+
 module.exports = router;

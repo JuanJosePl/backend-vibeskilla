@@ -148,7 +148,7 @@ class WishlistService {
 
     const movedItems = [];
     for (const productId of productIds) {
-      const wishlistItem = wishlist.items.find(item => 
+      const wishlistItem = wishlist.items.find(item =>
         item.product._id.toString() === productId.toString()
       );
 
@@ -185,8 +185,8 @@ class WishlistService {
     }
 
     const changedProducts = wishlist.items
-      .filter(item => 
-        item.priceWhenAdded && 
+      .filter(item =>
+        item.priceWhenAdded &&
         item.product.price !== item.priceWhenAdded
       )
       .map(item => ({
@@ -200,6 +200,73 @@ class WishlistService {
 
     return changedProducts;
   }
+
+  /**
+   * Sincroniza wishlist de invitado (guest) con la wishlist del usuario autenticado
+   *
+   * Flujo:
+   * - Recibe items guardados en localStorage (guest)
+   * - Evita duplicados
+   * - Valida existencia real de productos
+   * - Migra solo productos válidos
+   * - Mantiene snapshot de precio
+   *
+   * Este método:
+   * - NO borra la wishlist existente
+   * - NO lanza error si un producto ya no existe
+   * - ES idempotente (puede ejecutarse varias veces sin duplicar)
+   *
+   * @param {string} userId - ID del usuario autenticado
+   * @param {Array} guestItems - Items guest [{ productId }]
+   * @returns {Promise<{ migratedCount: number }>}
+   */
+  async syncGuestWishlist(userId, guestItems = []) {
+    // Nada que sincronizar
+    if (!Array.isArray(guestItems) || guestItems.length === 0) {
+      return { migratedCount: 0 };
+    }
+
+    // Obtener o crear wishlist del usuario
+    let wishlist = await Wishlist.findOne({ user: userId });
+    if (!wishlist) {
+      wishlist = await Wishlist.create({ user: userId, items: [] });
+    }
+
+    let migratedCount = 0;
+
+    // Migrar items guest → wishlist user
+    for (const item of guestItems) {
+      if (!item?.productId) continue;
+
+      //  Evitar duplicados
+      const exists = wishlist.items.some(
+        i => i.product.toString() === item.productId.toString()
+      );
+      if (exists) continue;
+
+      // Validar que el producto exista
+      const product = await Product.findById(item.productId);
+      if (!product) continue;
+
+      // Agregar item
+      wishlist.items.push({
+        product: product._id,
+        priceWhenAdded: product.price
+      });
+
+      migratedCount++;
+    }
+
+    // Persistir solo si hubo cambios
+    if (migratedCount > 0) {
+      await wishlist.save();
+    }
+
+    return { migratedCount };
+  }
+
+
+
 }
 
 module.exports = new WishlistService();

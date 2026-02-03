@@ -126,6 +126,28 @@ const getPriceChanges = catchAsync(async (req, res) => {
   });
 });
 
+/**
+ * @desc    Sincronizar wishlist guest → user
+ * @route   POST /api/wishlist/sync
+ * @access  Private
+ */
+const syncGuestWishlist  = catchAsync(async (req, res) => {
+  const { items } = req.body;
+
+  const result = await wishlistService.syncGuestWishlist(
+    req.user._id,
+    items
+  );
+
+  res.json({
+    success: true,
+    message: 'Wishlist sincronizada correctamente',
+    migratedCount: result.migratedCount
+  });
+});
+
+
+
 module.exports = {
   getWishlist,
   addItem,
@@ -133,5 +155,6 @@ module.exports = {
   clearWishlist,
   checkProduct,
   moveToCart,
-  getPriceChanges
+  getPriceChanges,
+  syncGuestWishlist  
 };

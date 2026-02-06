@@ -17,26 +17,38 @@ app.use(helmet({
   contentSecurityPolicy: {
     directives: {
       defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'"],
       styleSrc: ["'self'", "'unsafe-inline'"],
-      scriptSrc: ["'self'"],
       imgSrc: ["'self'", "data:", "https:"],
+      connectSrc: [
+        "'self'",
+        "https://backend-vibeskilla.onrender.com"
+      ]
     }
   },
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
+
 app.use(mongoSanitize());
 
 const allowedOrigins = [
   'http://localhost:5173',
   'http://localhost:3000',
+
+  //  FRONTENDS VERCEL
+  'https://new-killa-vibe.vercel.app',
+
+  // antiguos (pueden quedarse o limpiarse luego)
   'https://front-vibeskilla.vercel.app',
   'https://front-vibeskilla-jcrs.vercel.app',
   'https://front-vibeskilla-h9haomdkx-juanjosepls-projects.vercel.app',
   'https://front-vibeskilla-git-main-juanjosepls-projects.vercel.app',
+
   process.env.CLIENT_URL
 ].filter(Boolean);
+
 
 app.use(cors({
   origin: (origin, callback) => {
